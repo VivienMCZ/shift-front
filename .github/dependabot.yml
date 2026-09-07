@@ -25,8 +25,18 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      # Action bumps are reviewed together: one PR, one CI run.
+      actions:
+        patterns: ['*']
 
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # The base image tracks an LTS line. Node majors reach LTS only in the
+      # October after their release, so an automated major bump would put a
+      # non-LTS runtime in production. Move the line by hand.
+      - dependency-name: node
+        update-types: [version-update:semver-major]
