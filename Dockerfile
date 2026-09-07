@@ -1,5 +1,7 @@
-# Use the official Node.js 22 LTS image.
-FROM node:22-slim
+# Node.js 22 LTS, pinned by digest so local and CI build the exact same base.
+# Dependabot bumps this line; re-pin manually with:
+#   docker inspect node:22-slim --format '{{index .RepoDigests 0}}'
+FROM node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
 
 # Set the working directory in the container.
 WORKDIR /app
@@ -9,11 +11,13 @@ WORKDIR /app
 RUN chown node:node /app
 USER node
 
-# Copy package.json and yarn.lock to the working directory.
-COPY --chown=node:node package.json yarn.lock ./
+# package-lock.json is the authoritative lockfile — the CI installs with the
+# same `npm ci`, so the image and the pipeline resolve identical trees.
+COPY --chown=node:node package.json package-lock.json ./
 
-# Install dependencies.
-RUN yarn install
+# Install dependencies. devDependencies are needed: the Tailwind PostCSS
+# plugin and the React compiler run during `next build`.
+RUN npm ci
 
 # Copy the rest of the application code.
 COPY --chown=node:node . .
@@ -25,7 +29,7 @@ ARG INTERNAL_API_URL
 ENV INTERNAL_API_URL=$INTERNAL_API_URL
 
 # Build the Next.js application.
-RUN yarn build
+RUN npm run build
 
 # Only after the build: the build itself needs the devDependencies.
 ENV NODE_ENV=production
@@ -37,4 +41,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 # Define the command to start the application.
-CMD ["yarn", "start"]
+CMD ["npm", "run", "start"]
