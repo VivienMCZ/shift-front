@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Matches the runtime in the Dockerfile (node:22-slim).
+  NODE_VERSION: '22'
+
+jobs:
+  test:
+    name: Lint and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Non-blocking for now: the repository carries pre-existing violations
+      # (react-hooks/set-state-in-effect, no-img-element, no-unescaped-entities).
+      # Flip this to a blocking step once that backlog is cleared.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Unit tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+
+  build:
+    name: Next.js build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    needs: [test, build]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Build only — nothing is pushed. INTERNAL_API_URL is baked into the
+      # Next rewrites at build time, so it has to be passed here too.
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: shift-front:${{ github.sha }}
+          build-args: |
+            INTERNAL_API_URL=${{ vars.INTERNAL_API_URL || 'http://api:80' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test the image
+        run: |
+          docker run -d --name shift-front -p 3000:3000 shift-front:${{ github.sha }}
+          for i in $(seq 1 30); do
+            if curl -fsS -o /dev/null http://localhost:3000/; then
+              echo "Container answered on attempt $i"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Container never became ready:"
+          docker logs shift-front
+          exit 1
+
+      - name: Tear down
+        if: always()
+        run: docker rm -f shift-front || true

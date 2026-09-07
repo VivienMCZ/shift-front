@@ -1,0 +1,26 @@
+# Dependencies
+node_modules
+
+# Build artifacts
+.next
+dist
+out
+
+# Local environment variables
+.env.local
+
+# Git
+.git
+
+# Gemini CLI state
+.gemini
+
+# Tests and coverage
+tests
+coverage
+vitest.config.mjs
+vitest.setup.js
+
+# CI
+.github
+sonar-project.properties
