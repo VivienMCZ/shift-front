@@ -26,10 +26,10 @@ const contentSecurityPolicy = [
   // unsafe-eval is dev-only, for React Fast Refresh.
   `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://api.dicebear.com https://maps.googleapis.com",
+  "img-src 'self' data: blob: https://api.dicebear.com https://maps.googleapis.com https://images.unsplash.com",
   "font-src 'self' data:",
-  // api-adresse: address autocomplete fallback. prod.spline.design: the 3D scene.
-  `connect-src 'self' https://api-adresse.data.gouv.fr https://prod.spline.design${isDev ? ' ws: wss:' : ''}`,
+  // api-adresse: address autocomplete fallback. prod.spline.design: the 3D scene. gstatic: Draco 3D decoders.
+  `connect-src 'self' https://api-adresse.data.gouv.fr https://prod.spline.design https://www.gstatic.com${isDev ? ' ws: wss:' : ''}`,
   "worker-src 'self' blob:",
   "manifest-src 'self'",
 ].join('; ')
@@ -43,7 +43,7 @@ const securityHeaders = [
   // Geolocation is used by the address bar; nothing else is needed.
   {
     key: 'Permissions-Policy',
-    value: 'camera=(), microphone=(), payment=(), usb=(), interest-cohort=(), geolocation=(self)',
+    value: 'camera=(), microphone=(), payment=(), usb=(), geolocation=(self)',
   },
   { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
   { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
