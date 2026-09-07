@@ -27,7 +27,7 @@ jobs:
     name: Lint and unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v5
         with:
@@ -59,7 +59,7 @@ jobs:
     name: Next.js build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v5
         with:
@@ -77,7 +77,7 @@ jobs:
     needs: [test, build]
     if: github.event_name != 'schedule'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: docker/setup-buildx-action@v3
 
@@ -140,7 +140,7 @@ jobs:
         if: steps.token.outputs.present != 'true'
         run: echo "::notice::SONAR_TOKEN is not set - skipping the SonarQube analysis."
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         if: steps.token.outputs.present == 'true'
         with:
           # Sonar needs the full history to attribute blame and new-code periods.
@@ -174,7 +174,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Initialise CodeQL
         uses: github/codeql-action/init@v3
@@ -196,7 +196,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v5
         with:
