@@ -75,7 +75,7 @@ jobs:
       # Build only — nothing is pushed. INTERNAL_API_URL is baked into the
       # Next rewrites at build time, so it has to be passed here too.
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: false
