@@ -2,12 +2,18 @@
 
 const isDev = process.env.NODE_ENV !== 'production'
 
+/** Hosts that are served over plain HTTP on purpose. */
+const LOCAL_HOST_PATTERN = '^(localhost|127\\.0\\.0\\.1|\\[::1\\]|::1)(:\\d+)?$'
+
 /**
  * Content-Security-Policy (OWASP A03 / A05).
  *
  * 'unsafe-inline' is still required for scripts and styles: Next.js inlines its
  * bootstrap script and Tailwind emits inline style attributes. Tightening this
  * to a nonce needs middleware — tracked as follow-up work.
+ *
+ * `upgrade-insecure-requests` is deliberately NOT here: it would break plain
+ * HTTP hosts. It is added below, per request, for everything but localhost.
  */
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -26,7 +32,6 @@ const contentSecurityPolicy = [
   `connect-src 'self' https://api-adresse.data.gouv.fr https://prod.spline.design${isDev ? ' ws: wss:' : ''}`,
   "worker-src 'self' blob:",
   "manifest-src 'self'",
-  ...(isDev ? [] : ['upgrade-insecure-requests']),
 ].join('; ')
 
 const securityHeaders = [
@@ -42,10 +47,24 @@ const securityHeaders = [
   },
   { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
   { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
-  // Only meaningful over HTTPS, so it is left out of local development.
-  ...(isDev
-    ? []
-    : [{ key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' }]),
+]
+
+/**
+ * HTTPS-only hardening.
+ *
+ * These must never reach a plain HTTP origin: HSTS would pin the browser to a
+ * scheme the host does not serve, and `upgrade-insecure-requests` rewrites the
+ * page's own requests to https://. NODE_ENV cannot make that call — a
+ * production build is exactly what runs in the local container — so the
+ * decision is made per request, on the Host header, at runtime.
+ *
+ * A second Content-Security-Policy header is additive: browsers enforce every
+ * policy they receive, and one carrying only `upgrade-insecure-requests`
+ * restricts nothing else.
+ */
+const httpsOnlyHeaders = [
+  { key: 'Content-Security-Policy', value: 'upgrade-insecure-requests' },
+  { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
 ]
 
 const nextConfig = {
@@ -54,7 +73,14 @@ const nextConfig = {
   poweredByHeader: false,
 
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }]
+    return [
+      { source: '/:path*', headers: securityHeaders },
+      {
+        source: '/:path*',
+        missing: [{ type: 'host', value: LOCAL_HOST_PATTERN }],
+        headers: httpsOnlyHeaders,
+      },
+    ]
   },
 
   async rewrites() {
