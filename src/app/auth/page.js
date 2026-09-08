@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { Mail, User, Phone, Lock, ArrowRight, Loader2, ArrowLeft } from 'lucide-react'
 import { useAuth } from '@/app/context/AuthContext'
 import { useLanguage } from '@/app/context/LanguageContext'
@@ -180,7 +180,7 @@ export default function AuthPage() {
 
         <AnimatePresence mode="wait">
           {step === 'EMAIL' && (
-            <motion.form
+            <m.form
               key="email-form"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -210,11 +210,11 @@ export default function AuthPage() {
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Translate id="auth.btn.continue" />}
                 {!loading && <ArrowRight className="h-5 w-5" />}
               </button>
-            </motion.form>
+            </m.form>
           )}
 
           {step === 'PROFILE' && (
-            <motion.form
+            <m.form
               key="profile-form"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -270,11 +270,11 @@ export default function AuthPage() {
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Translate id="auth.btn.register" />}
                 {!loading && <ArrowRight className="h-5 w-5" />}
               </button>
-            </motion.form>
+            </m.form>
           )}
 
           {step === 'OTP' && (
-            <motion.form
+            <m.form
               key="otp-form"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -305,7 +305,7 @@ export default function AuthPage() {
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Translate id="auth.btn.verify" />}
                 {!loading && <ArrowRight className="h-5 w-5" />}
               </button>
-            </motion.form>
+            </m.form>
           )}
         </AnimatePresence>
 

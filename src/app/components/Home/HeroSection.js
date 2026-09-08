@@ -1,25 +1,58 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { ArrowRight, CheckCircle2, Star, Calculator, ShieldCheck } from "lucide-react";
 import { Translate } from "@/app/calculateur-aides/translation";
 
-const Spline = dynamic(() => import('@splinetool/react-spline'), { 
-  ssr: false,
-  loading: () => (
+function SplinePlaceholder() {
+  return (
     <div className="flex h-full w-full items-center justify-center">
       <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0047FF]/20 border-t-[#0047FF]"></div>
     </div>
-  )
+  );
+}
+
+const Spline = dynamic(() => import('@splinetool/react-spline'), {
+  ssr: false,
+  loading: SplinePlaceholder,
 });
+
+/**
+ * La scène 3D tire environ 4 Mo de JavaScript (runtime Spline + module WASM).
+ * Lancé dès l'hydratation, ce téléchargement se dispute le thread principal
+ * avec la mise en interactivité de la page — au moment précis où l'utilisateur
+ * essaie de cliquer sur le simulateur.
+ *
+ * On attend donc le premier temps mort du navigateur. Le `timeout` garantit le
+ * déclenchement même si le thread reste occupé ; l'habillage de chargement
+ * affiché entre-temps est celui que `dynamic()` utilisait déjà.
+ */
+function useIdle(timeout = 1500) {
+  const [idle, setIdle] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    if (typeof window.requestIdleCallback !== "function") {
+      const timer = setTimeout(() => setIdle(true), 200);
+      return () => clearTimeout(timer);
+    }
+
+    const handle = window.requestIdleCallback(() => setIdle(true), { timeout });
+    return () => window.cancelIdleCallback?.(handle);
+  }, [timeout]);
+
+  return idle;
+}
 
 export default function HeroSection() {
   const [ageGroup, setAgeGroup] = useState("");
   const [status, setStatus] = useState("");
+  const splineReady = useIdle();
 
   let estimatedAid = <Translate id="hero.aid.default" />;
   if (status === "apprenti") estimatedAid = <Translate id="hero.aid.apprenti" />;
@@ -39,14 +72,14 @@ export default function HeroSection() {
       </div>
 
       <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1fr_0.9fr] lg:gap-16">
-        <motion.div 
+        <m.div 
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="max-w-3xl"
         >
           {/* Badge Social Proof */}
-          <motion.div 
+          <m.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.2, duration: 0.5 }}
@@ -54,7 +87,7 @@ export default function HeroSection() {
           >
             <ShieldCheck className="text-[#0047FF]" size={18} />
             <span className="text-sm font-bold text-[#0047FF]"><Translate id="hero.badge" /></span>
-          </motion.div>
+          </m.div>
 
           <h1 className="max-w-4xl text-5xl font-black leading-[1.05] tracking-tight text-[#1e293b] sm:text-6xl md:text-7xl lg:text-[4.5rem]">
             <Translate id="hero.title.part1" /><span className="text-transparent bg-clip-text bg-gradient-to-r from-[#0047FF] to-[#0ea5e9]"><Translate id="hero.title.part2" /></span>
@@ -75,7 +108,7 @@ export default function HeroSection() {
           </div>
 
           {/* Social Proof */}
-          <motion.div 
+          <m.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6, duration: 0.5 }}
@@ -97,11 +130,11 @@ export default function HeroSection() {
               </div>
               <span className="text-sm font-semibold text-[#475569]"><Translate id="hero.social_proof.text" /></span>
             </div>
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
 
         {/* Côté droit : Image 3D + Simulateur */}
-        <motion.div 
+        <m.div 
           initial={{ opacity: 0, x: 30 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
@@ -109,7 +142,9 @@ export default function HeroSection() {
         >
           {/* L'image 3D générée en fond / déco (remplacée par Spline) */}
           <div className="absolute -top-20 -right-4 lg:-top-32 lg:-right-12 -z-10 w-72 h-72 lg:w-[550px] lg:h-[550px] drop-shadow-2xl opacity-95 pointer-events-auto">
-             <Spline scene="https://prod.spline.design/lk72hQmn1jcV6dEU/scene.splinecode" />
+             {splineReady
+               ? <Spline scene="https://prod.spline.design/lk72hQmn1jcV6dEU/scene.splinecode" />
+               : <SplinePlaceholder />}
           </div>
 
           <div className="relative mt-8 lg:mt-0 rounded-[2rem] border border-white/60 bg-white/70 p-6 shadow-[0_32px_80px_-20px_rgba(0,30,100,0.15)] backdrop-blur-xl">
@@ -164,7 +199,7 @@ export default function HeroSection() {
 
               <AnimatePresence mode="popLayout">
                 {(ageGroup || status) && (
-                  <motion.div
+                  <m.div
                     initial={{ opacity: 0, scale: 0.95, height: 0 }}
                     animate={{ opacity: 1, scale: 1, height: "auto" }}
                     exit={{ opacity: 0, scale: 0.95, height: 0 }}
@@ -180,26 +215,14 @@ export default function HeroSection() {
                         <Translate id="hero.simulator.result.disclaimer" />
                       </p>
                     </div>
-                  </motion.div>
+                  </m.div>
                 )}
               </AnimatePresence>
 
             </div>
           </div>
-        </motion.div>
+        </m.div>
       </div>
-
-      {/* Animation globale (floating) */}
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes float {
-          0% { transform: translateY(0px); }
-          50% { transform: translateY(-15px); }
-          100% { transform: translateY(0px); }
-        }
-        .animate-float {
-          animation: float 6s ease-in-out infinite;
-        }
-      `}} />
     </section>
   );
 }

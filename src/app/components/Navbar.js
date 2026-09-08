@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { HelpCircle, Scale, User } from 'lucide-react'
 import { GLASS_SHELL_STYLE } from '@/app/lib/glass-styles'
-import { motion, LayoutGroup } from 'framer-motion'
+import { m, LayoutGroup } from 'framer-motion'
 import { useAuth } from '@/app/context/AuthContext'
 import { Translate } from '@/app/calculateur-aides/translation'
 import { useLanguage } from '@/app/context/LanguageContext'
@@ -52,7 +52,7 @@ export default function Navbar() {
                   className="relative flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black transition-colors"
                 >
                   {isActive && (
-                    <motion.span
+                    <m.span
                       layoutId="navbar-desktop-pill"
                       layout
                       className="liquid-active-plaque absolute inset-0 rounded-full"
@@ -127,7 +127,7 @@ export default function Navbar() {
                   className="relative flex min-w-0 flex-1 flex-col items-center gap-1 rounded-[1.25rem] py-3 text-center transition-transform active:scale-[0.98]"
                 >
                   {isActive && (
-                    <motion.span
+                    <m.span
                       layoutId="navbar-mobile-pill"
                       layout
                       className="liquid-active-plaque absolute inset-x-1.5 inset-y-1 rounded-[1.2rem]"

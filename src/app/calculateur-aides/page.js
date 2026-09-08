@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { ArrowRight, ArrowLeft, Briefcase, GraduationCap, Building2, User, HelpCircle, CheckCircle2, Loader2, Sparkles, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
@@ -154,7 +154,7 @@ export default function CalculateurAides() {
                 <span className={step >= 2 ? "text-[#0047FF]" : ""}><Translate id="calculateur.step2" /></span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-[#e2e8f0]">
-                <motion.div
+                <m.div
                   className="h-full bg-[#0047FF]"
                   initial={{ width: "50%" }}
                   animate={{ width: step === 1 ? "50%" : "100%" }}
@@ -166,7 +166,7 @@ export default function CalculateurAides() {
 
           <AnimatePresence mode="wait">
             {step === 1 && (
-              <motion.div
+              <m.div
                 key="step1"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -214,11 +214,11 @@ export default function CalculateurAides() {
                     <Translate id="calculateur.btn.next" /> <ArrowRight size={20} strokeWidth={2.5} />
                   </button>
                 </div>
-              </motion.div>
+              </m.div>
             )}
 
             {step === 2 && (
-              <motion.div
+              <m.div
                 key="step2"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -284,11 +284,11 @@ export default function CalculateurAides() {
                     {!loading && <ArrowRight size={20} strokeWidth={2.5} />}
                   </button>
                 </div>
-              </motion.div>
+              </m.div>
             )}
 
             {step === 3 && results && (
-              <motion.div
+              <m.div
                 key="step3"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -355,7 +355,7 @@ export default function CalculateurAides() {
                     <Translate id="calculateur.btn.recalculate" />
                   </button>
                 </div>
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
         </div>

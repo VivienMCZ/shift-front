@@ -11,9 +11,11 @@ vi.mock('next/navigation', () => ({ usePathname }))
 vi.mock('@/app/context/AuthContext', () => ({ useAuth }))
 
 /** Framer Motion's layout animations are noise here, and jsdom cannot run them. */
+// La Navbar utilise les composants légers `m.*` : le moteur d'animation est
+// chargé à la demande par MotionProvider, absent de ce rendu isolé.
 vi.mock('framer-motion', () => ({
   LayoutGroup: ({ children }) => children,
-  motion: new Proxy({}, { get: () => ({ children, ...props }) => <span {...props}>{children}</span> }),
+  m: new Proxy({}, { get: () => ({ children, ...props }) => <span {...props}>{children}</span> }),
 }))
 
 function renderNavbar() {

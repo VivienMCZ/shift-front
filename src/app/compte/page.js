@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { m } from 'framer-motion'
 import { LogOut, User, Mail, Phone, History, Heart, Trash2, ExternalLink, MapPin, Star, Navigation, ArrowRight } from 'lucide-react'
 import { useAuth } from '@/app/context/AuthContext'
 import { GLASS_SHELL_STYLE } from '@/app/lib/glass-styles'
@@ -85,7 +85,7 @@ export default function ComptePage() {
 
         <div className="grid gap-6 md:grid-cols-3">
           {/* Informations personnelles */}
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             className="col-span-1 rounded-[2rem] bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-slate-100"
@@ -137,10 +137,10 @@ export default function ComptePage() {
                 </div>
               )}
             </div>
-          </motion.div>
+          </m.div>
 
           {/* Favoris et Historique (Placeholders) */}
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
@@ -288,7 +288,7 @@ export default function ComptePage() {
                 </div>
               )}
             </div>
-          </motion.div>
+          </m.div>
         </div>
 
       </div>

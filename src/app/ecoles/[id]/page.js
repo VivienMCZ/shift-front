@@ -16,7 +16,7 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { m } from 'framer-motion'
 import { useAuth } from '@/app/context/AuthContext'
 import { Translate } from '@/app/calculateur-aides/translation'
 
@@ -195,7 +195,7 @@ export default function EcoleDetailsPage({ params }) {
           <div className="md:col-span-2 flex flex-col gap-6">
             
             {/* Header Card */}
-            <motion.div 
+            <m.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="glass-panel-strong overflow-hidden rounded-[2rem] p-6 sm:p-8"
@@ -229,11 +229,11 @@ export default function EcoleDetailsPage({ params }) {
                   </span>
                 ))}
               </div>
-            </motion.div>
+            </m.div>
 
             {/* Pricing & Speed Highlights */}
             <div className="grid grid-cols-2 gap-4 sm:gap-6">
-              <motion.div 
+              <m.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
@@ -251,9 +251,9 @@ export default function EcoleDetailsPage({ params }) {
                     {ecole.price_label}
                   </span>
                 )}
-              </motion.div>
+              </m.div>
 
-              <motion.div 
+              <m.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
@@ -271,11 +271,11 @@ export default function EcoleDetailsPage({ params }) {
                     {ecole.speed_label}
                   </span>
                 )}
-              </motion.div>
+              </m.div>
             </div>
             
             {/* Additional Features/Description block (Placeholder for future data) */}
-            <motion.div 
+            <m.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
@@ -298,13 +298,13 @@ export default function EcoleDetailsPage({ params }) {
                   </li>
                 )}
               </ul>
-            </motion.div>
+            </m.div>
 
           </div>
           
           {/* Sidebar / CTA Column */}
           <div className="flex flex-col gap-6">
-            <motion.div 
+            <m.div 
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.25 }}
@@ -339,7 +339,7 @@ export default function EcoleDetailsPage({ params }) {
               >
                 <Navigation size={18} /> Voir sur la carte
               </a>
-            </motion.div>
+            </m.div>
           </div>
 
         </div>
