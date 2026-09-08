@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LanguageProvider } from '@/app/context/LanguageContext'
-import { Translate, fetchTextByKey } from '@/app/calculateur-aides/translation'
+import { Translate, fetchTextByKey, resetTranslationCache } from '@/app/calculateur-aides/translation'
 
 const okResponse = (text) => ({ ok: true, json: async () => ({ text }) })
 
@@ -12,6 +12,13 @@ function renderTranslated(ui) {
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   global.fetch = vi.fn()
+  // Les traductions sont mises en cache pour la session : chaque cas doit
+  // repartir d'une ardoise vierge pour observer les vrais appels réseau.
+  resetTranslationCache()
+})
+
+afterEach(() => {
+  resetTranslationCache()
 })
 
 afterEach(() => {
@@ -120,5 +127,67 @@ describe('<Translate>', () => {
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith('/api/v1/libs/hero.title.part2/translate?lang=fr')
     })
+  })
+})
+
+describe('cache des traductions', () => {
+  it('ne rappelle pas le backend pour une clé déjà résolue', async () => {
+    global.fetch.mockResolvedValue(okResponse('Bonjour'))
+
+    await fetchTextByKey('hero.title.part1', 'fr')
+    await expect(fetchTextByKey('hero.title.part1', 'fr')).resolves.toBe('Bonjour')
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('garde une entrée par langue', async () => {
+    global.fetch.mockResolvedValue(okResponse('Bonjour'))
+    await fetchTextByKey('hero.title.part1', 'fr')
+
+    global.fetch.mockResolvedValue(okResponse('Hello'))
+    await expect(fetchTextByKey('hero.title.part1', 'en')).resolves.toBe('Hello')
+
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('partage une seule requête entre les demandes simultanées', async () => {
+    global.fetch.mockResolvedValue(okResponse('Bonjour'))
+
+    const results = await Promise.all([
+      fetchTextByKey('hero.title.part1', 'fr'),
+      fetchTextByKey('hero.title.part1', 'fr'),
+      fetchTextByKey('hero.title.part1', 'fr'),
+    ])
+
+    expect(results).toEqual(['Bonjour', 'Bonjour', 'Bonjour'])
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  // Une coupure réseau passagère ne doit pas figer les libellés bruts.
+  it('ne met pas en cache un échec', async () => {
+    global.fetch.mockRejectedValue(new TypeError('Failed to fetch'))
+    await expect(fetchTextByKey('hero.title.part1', 'fr')).resolves.toBe('hero.title.part1')
+
+    global.fetch.mockResolvedValue(okResponse('Bonjour'))
+    await expect(fetchTextByKey('hero.title.part1', 'fr')).resolves.toBe('Bonjour')
+
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('monte plusieurs <Translate> sur la même clé avec un seul appel réseau', async () => {
+    global.fetch.mockResolvedValue(okResponse('Comparer'))
+
+    renderTranslated(
+      <>
+        <span><Translate id="navbar.comparer" /></span>
+        <span><Translate id="navbar.comparer" /></span>
+        <span><Translate id="navbar.comparer" /></span>
+      </>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Comparer')).toHaveLength(3)
+    })
+    expect(global.fetch).toHaveBeenCalledTimes(1)
   })
 })
