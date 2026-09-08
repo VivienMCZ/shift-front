@@ -83,18 +83,41 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Le fond de <body> se propageait au canvas de la page. Maintenant qu'il vit
+   dans une couche dédiée, on donne au canvas une couleur plate (le ton médian
+   du dégradé) : aucun coût de peinture, et rien de blanc n'apparaît derrière
+   l'élastique de scroll. */
+html {
+  background-color: var(--background);
+}
+
 body {
   margin: 0;
   padding: 0;
   min-height: 100dvh;
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Le dégradé de fond était posé sur <body> en `background-attachment: fixed`.
+   Ancré au viewport mais attaché à un élément qui défile, il oblige le
+   navigateur à repeindre tout l'écran à chaque frame de scroll — c'est la
+   principale source de saccade du site.
+
+   Une couche `position: fixed` dédiée donne exactement le même rendu (même
+   géométrie : le dégradé était déjà calé sur le viewport), mais le compositeur
+   peut la garder telle quelle pendant le défilement au lieu de la recalculer. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background:
     radial-gradient(circle at top left, rgba(0, 71, 255, 0.14), transparent 28%),
     radial-gradient(circle at 82% 16%, rgba(56, 189, 248, 0.12), transparent 18%),
     radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.9), transparent 34%),
     linear-gradient(180deg, #f6f9fd 0%, #f8fbff 44%, #eef4fb 100%);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
-  background-attachment: fixed;
 }
 
 /* ── Light glass panels (for content cards, etc.) ── */

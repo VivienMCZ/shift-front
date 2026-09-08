@@ -165,9 +165,14 @@ function EcoleCard({ ecole, mode = 'desktop', isFavorite = false, onToggleFavori
     <article className="group flex h-full min-w-0 flex-col overflow-hidden rounded-[1.75rem] border border-white/80 bg-white/78 shadow-[0_24px_70px_rgba(15,23,42,0.14)] backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:shadow-[0_34px_90px_rgba(15,23,42,0.2)]">
       <div className={`relative overflow-hidden bg-slate-200 ${isMobile ? 'h-44' : 'h-40'}`}>
         {ecole.image_url ? (
+          /* La page monte l'arbre mobile ET l'arbre desktop : sans `lazy`, chaque
+             visuel est téléchargé deux fois, y compris dans l'arbre masqué par
+             `display: none` que personne ne verra. */
           <img
             src={ecole.image_url}
             alt={ecole.name}
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.035]"
           />
         ) : (
