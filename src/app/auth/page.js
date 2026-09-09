@@ -6,14 +6,14 @@ import { m, AnimatePresence } from 'framer-motion'
 import { Mail, User, Phone, Lock, ArrowRight, Loader2, ArrowLeft } from 'lucide-react'
 import { useAuth } from '@/app/context/AuthContext'
 import { useLanguage } from '@/app/context/LanguageContext'
-import { Translate, fetchTextByKey } from '@/app/calculateur-aides/translation'
+import { Translate } from '@/app/calculateur-aides/translation'
 
 const API_URL = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 
 export default function AuthPage() {
   const router = useRouter()
   const { user, checkAuth } = useAuth()
-  const { lang } = useLanguage()
+  const { t } = useLanguage()
   
   useEffect(() => {
     if (user) {
@@ -31,19 +31,13 @@ export default function AuthPage() {
   const [phone, setPhone] = useState('')
   const [otpCode, setOtpCode] = useState('')
   
-  const [emailPlaceholder, setEmailPlaceholder] = useState('nom@exemple.fr');
-  const [firstNamePlaceholder, setFirstNamePlaceholder] = useState('Prénom');
-  const [lastNamePlaceholder, setLastNamePlaceholder] = useState('Nom');
-  const [phonePlaceholder, setPhonePlaceholder] = useState('Numéro de téléphone');
-  const [otpPlaceholder, setOtpPlaceholder] = useState('Code à 6 chiffres');
-
-  useEffect(() => {
-    fetchTextByKey('auth.placeholder.email', lang).then(setEmailPlaceholder);
-    fetchTextByKey('auth.placeholder.firstname', lang).then(setFirstNamePlaceholder);
-    fetchTextByKey('auth.placeholder.lastname', lang).then(setLastNamePlaceholder);
-    fetchTextByKey('auth.placeholder.phone', lang).then(setPhonePlaceholder);
-    fetchTextByKey('auth.placeholder.otp', lang).then(setOtpPlaceholder);
-  }, [lang]);
+  // Un `placeholder` est un attribut : il attend une chaîne, pas un <Translate>.
+  // `t()` la rend directement, sans requête ni état intermédiaire.
+  const emailPlaceholder = t('auth.placeholder.email', 'nom@exemple.fr');
+  const firstNamePlaceholder = t('auth.placeholder.firstname', 'Prénom');
+  const lastNamePlaceholder = t('auth.placeholder.lastname', 'Nom');
+  const phonePlaceholder = t('auth.placeholder.phone', 'Numéro de téléphone');
+  const otpPlaceholder = t('auth.placeholder.otp', 'Code à 6 chiffres');
 
   const parseErrorToKey = (errData) => {
     if (!errData) return "auth.error.unexpected"

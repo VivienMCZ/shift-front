@@ -3,9 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ComparerPage from '@/app/comparer/page'
 import HeroSection from '@/app/components/Home/HeroSection'
 import ProofPillars from '@/app/components/Home/ProofPillars'
-import { LanguageProvider } from '@/app/context/LanguageContext'
+import { LanguageProvider, resetDictionaryCache } from '@/app/context/LanguageContext'
 import { LocationProvider } from '@/app/context/LocationContext'
-import { resetTranslationCache } from '@/app/calculateur-aides/translation'
 
 const useAuth = vi.hoisted(() => vi.fn(() => ({ user: null, loading: false })))
 vi.mock('@/app/context/AuthContext', () => ({ useAuth }))
@@ -31,16 +30,19 @@ const SCHOOLS = Array.from({ length: 20 }, (_, i) => ({
 const TRANSLATE_RE = /\/api\/v1\/libs\//
 
 let translateCalls
+let schoolCalls
 
 beforeEach(() => {
-  resetTranslationCache()
+  resetDictionaryCache()
   translateCalls = []
+  schoolCalls = []
 
   global.fetch = vi.fn(async (url) => {
     if (TRANSLATE_RE.test(url)) {
-      translateCalls.push(url)
-      return { ok: true, json: async () => ({ text: 'Libellé' }) }
+      translateCalls.push(String(url))
+      return { ok: true, json: async () => ({ 'comparer.page.title': 'Comparer' }) }
     }
+    schoolCalls.push(String(url))
     return { ok: true, json: async () => SCHOOLS }
   })
 })
@@ -49,14 +51,13 @@ beforeEach(() => {
  * Garde-fou de performance réseau.
  *
  * /comparer monte son arbre mobile ET son arbre desktop, et répète les mêmes
- * libellés sur chacune des cartes. Sans mutualisation, chaque <Translate>
- * ouvrait sa propre requête : plusieurs centaines d'allers-retours pour
- * quelques dizaines de libellés distincts, en concurrence avec le chargement
- * des données. Le cache de `fetchTextByKey` ramène ce total au nombre de clés
- * réellement distinctes.
+ * libellés sur chacune des cartes : 79 clés distinctes. Chaque <Translate>
+ * résolvait autrefois la sienne, une requête chacune — un fan-out qui saturait
+ * la connexion et repoussait derrière lui le chargement des données. Le
+ * dictionnaire est désormais chargé en un seul appel, par langue.
  */
 describe('requêtes de traduction sur /comparer', () => {
-  it('ne demande chaque clé qu\u2019une fois, quel que soit le nombre de cartes', async () => {
+  it('charge tous les libellés en un seul aller-retour', async () => {
     render(
       <LanguageProvider>
         <LocationProvider>
@@ -65,23 +66,42 @@ describe('requêtes de traduction sur /comparer', () => {
       </LanguageProvider>,
     )
 
-    // Les cartes n'arrivent qu'après le debounce de 300 ms : c'est là que les
-    // mêmes libellés sont remontés, une fois par carte et par arbre.
     await waitFor(
       () => expect(screen.getAllByText('Auto-école 20').length).toBeGreaterThan(0),
       { timeout: 4000 },
     )
     await new Promise((resolve) => setTimeout(resolve, 100))
 
-    const unique = new Set(translateCalls)
-    console.log(`\n  → ${translateCalls.length} requêtes de traduction pour ${unique.size} clés distinctes (${SCHOOLS.length} auto-écoles)\n`)
+    console.log(`\n  → ${translateCalls.length} requête(s) de traduction pour ${SCHOOLS.length} auto-écoles\n`)
 
-    expect(translateCalls.length).toBe(unique.size)
+    expect(translateCalls).toEqual(['/api/v1/libs/dictionary?lang=fr'])
+  })
+
+  /**
+   * La position n'est connue qu'après le montage. Partir la chercher sans elle,
+   * c'est une requête complète jetée puis relancée avec les coordonnées.
+   */
+  it('ne demande les auto-écoles qu’une fois au chargement', async () => {
+    render(
+      <LanguageProvider>
+        <LocationProvider>
+          <ComparerPage />
+        </LocationProvider>
+      </LanguageProvider>,
+    )
+
+    await waitFor(
+      () => expect(screen.getAllByText('Auto-école 20').length).toBeGreaterThan(0),
+      { timeout: 4000 },
+    )
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    expect(schoolCalls).toHaveLength(1)
   })
 })
 
 describe('requêtes de traduction sur la page d’accueil', () => {
-  it('mutualise les clés partagées entre le hero et les piliers', async () => {
+  it('partage le dictionnaire entre le hero et les piliers', async () => {
     render(
       <LanguageProvider>
         <HeroSection />
@@ -89,14 +109,9 @@ describe('requêtes de traduction sur la page d’accueil', () => {
       </LanguageProvider>,
     )
 
-    await waitFor(() => expect(translateCalls.length).toBeGreaterThan(10))
+    await waitFor(() => expect(translateCalls.length).toBeGreaterThan(0))
     await new Promise((resolve) => setTimeout(resolve, 100))
 
-    const unique = new Set(translateCalls)
-    console.log(`
-  → accueil : ${translateCalls.length} requêtes pour ${unique.size} clés distinctes
-`)
-
-    expect(translateCalls.length).toBe(unique.size)
+    expect(translateCalls).toEqual(['/api/v1/libs/dictionary?lang=fr'])
   })
 })

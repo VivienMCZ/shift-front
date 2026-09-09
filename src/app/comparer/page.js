@@ -681,10 +681,16 @@ function CardsArea({ error, loading, ecoles, mode = 'desktop', favorites, onTogg
 }
 
 export default function ComparerPage() {
-  const { location, setLocation } = useLocation()
+  const { location, setLocation, isHydrated: locationHydrated } = useLocation()
 
   const [initialized, setInitialized] = useState(false)
-  const [requestDelay, setRequestDelay] = useState(REQUEST_DEBOUNCE_MS)
+  /** Faux jusqu'à la première position connue — voir l'effet de debounce. */
+  const locationSettled = useRef(false)
+  // Le debounce ne sert qu'à absorber les rafales d'un curseur qu'on fait
+  // glisser. Au premier rendu aucun filtre n'a bougé : partir à 300 ms n'y
+  // regroupait rien, ça retardait juste d'autant la seule requête qui remplit
+  // la page.
+  const [requestDelay, setRequestDelay] = useState(0)
   const [debouncedRequest, setDebouncedRequest] = useState(null)
   const [radius, setRadiusState] = useState(DEFAULT_RADIUS)
   const [permitFilter, setPermitFilterState] = useState(DEFAULT_PERMIT)
@@ -826,10 +832,20 @@ export default function ComparerPage() {
     setGearFilterState(value)
   }
 
+  /**
+   * Une adresse saisie arrive caractère par caractère : on absorbe la rafale.
+   * Mais la toute premiere position — celle de l'URL ou de la session — n'est
+   * pas une saisie : la debouncer ne regroupait rien, ça ajoutait 300 ms au
+   * chargement de la page.
+   */
   useEffect(() => {
-    if (!initialized) return
+    if (!initialized || !locationHydrated) return
+    if (!locationSettled.current) {
+      locationSettled.current = true
+      return
+    }
     setRequestDelay(REQUEST_DEBOUNCE_MS)
-  }, [initialized, location?.lat, location?.lng, location?.displayLabel])
+  }, [initialized, locationHydrated, location?.lat, location?.lng, location?.displayLabel])
 
   useEffect(() => {
     if (!initialized) return
@@ -877,15 +893,17 @@ export default function ComparerPage() {
     }
   }, [locationActive, location?.lat, location?.lng, radius, permitFilter, budgetRange, priceSort, gearFilter, minScore])
 
+  // On attend que la position soit hydratée : partir sans elle, c'est une
+  // requête complète jetée, puis relancée avec les coordonnées.
   useEffect(() => {
-    if (!initialized) return undefined
+    if (!initialized || !locationHydrated) return undefined
 
     const timer = setTimeout(() => {
       setDebouncedRequest(request)
     }, requestDelay)
 
     return () => clearTimeout(timer)
-  }, [initialized, request, requestDelay])
+  }, [initialized, locationHydrated, request, requestDelay])
 
   useEffect(() => {
     if (!debouncedRequest) return undefined

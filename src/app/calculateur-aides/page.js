@@ -6,7 +6,8 @@ import { m, AnimatePresence } from "framer-motion";
 import { ArrowRight, ArrowLeft, Briefcase, GraduationCap, Building2, User, HelpCircle, CheckCircle2, Loader2, Sparkles, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
-import { Translate, fetchTextByKey } from "@/app/calculateur-aides/translation";
+import { Translate } from "@/app/calculateur-aides/translation";
+import { useLanguage } from "@/app/context/LanguageContext";
 import { safeExternalUrl } from '@/app/lib/safe-url'
 
 
@@ -24,8 +25,10 @@ export default function CalculateurAides() {
   const [results, setResults] = useState(null);
   const [apiError, setApiError] = useState(null);
 
-  const [agePlaceholder, setAgePlaceholder] = useState("Ex: 18");
-  const [cpPlaceholder, setCpPlaceholder] = useState("Ex: 75001");
+  // Attributs `placeholder` : une chaîne, pas un <Translate>.
+  const { t } = useLanguage();
+  const agePlaceholder = t("calculateur.placeholder.age", "Ex: 18");
+  const cpPlaceholder = t("calculateur.placeholder.cp", "Ex: 75001");
 
   const statuses = [
     { id: "lyceen", label: <Translate id="calculateur.status.lyceen" />, icon: User },
@@ -35,11 +38,6 @@ export default function CalculateurAides() {
     { id: "chomeur", label: <Translate id="calculateur.status.chomeur" />, icon: HelpCircle },
     { id: "autre", label: <Translate id="calculateur.status.autre" />, icon: User },
   ];
-
-  useEffect(() => {
-    fetchTextByKey("calculateur.placeholder.age").then(setAgePlaceholder);
-    fetchTextByKey("calculateur.placeholder.cp").then(setCpPlaceholder);
-  }, []);
 
   // Pre-fill form if user data is available
   useEffect(() => {
