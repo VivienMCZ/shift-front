@@ -43,7 +43,11 @@ beforeEach(() => {
       return { ok: true, json: async () => ({ 'comparer.page.title': 'Comparer' }) }
     }
     schoolCalls.push(String(url))
-    return { ok: true, json: async () => SCHOOLS }
+    return {
+      ok: true,
+      headers: { get: (name) => (name === 'X-Total-Count' ? String(SCHOOLS.length) : null) },
+      json: async () => SCHOOLS,
+    }
   })
 })
 

@@ -69,6 +69,23 @@ const httpsOnlyHeaders = [
 
 const nextConfig = {
   reactCompiler: true,
+
+  /**
+   * Les visuels des auto-écoles viennent d'Unsplash, qui sert des JPEG pleine
+   * résolution. `next/image` les réencode en AVIF/WebP à la taille réellement
+   * affichée : moins d'octets sur le réseau, et surtout des textures beaucoup
+   * plus petites à garder en mémoire GPU — la page en monte 46 (arbre mobile et
+   * arbre desktop).
+   *
+   * Les images optimisées sont servies depuis l'origine du site, ce que la CSP
+   * autorise déjà via `img-src 'self'`.
+   */
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: 'api.dicebear.com' },
+    ],
+  },
   // Do not advertise the framework version (OWASP A05).
   poweredByHeader: false,
 

@@ -12,9 +12,13 @@ import { useLanguage } from "@/app/context/LanguageContext";
  *
  * Tant que le dictionnaire n'est pas arrivé, `t()` renvoie la clé : c'est aussi
  * ce que contient le HTML rendu côté serveur, l'hydratation reste alignée.
+ *
+ * `fallback` sert aux clés pas encore semées en base : le texte s'affiche
+ * correctement dès maintenant, et cède la place à la traduction dès que la clé
+ * existe. Sans lui, la clé brute resterait visible à l'écran.
  */
-export function Translate({ id }) {
+export function Translate({ id, fallback }) {
   const { t } = useLanguage();
 
-  return <>{t(id)}</>;
+  return <>{t(id, fallback ?? id)}</>;
 }
