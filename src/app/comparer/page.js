@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import {
   AlertCircle,
   ArrowRight,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react'
 import LocationSearchBar from '@/app/components/LocationSearchBar'
 import { useAuth } from '@/app/context/AuthContext'
+import { useIsDesktop } from '@/app/hooks/useIsDesktop'
 import { useLocation } from '@/app/context/LocationContext'
 import { GLASS_SHELL_STYLE } from '@/app/lib/glass-styles'
 import {
@@ -35,6 +37,11 @@ import {
   scoreTone,
 } from '@/app/lib/comparer-utils'
 import { Translate } from '@/app/calculateur-aides/translation'
+import {
+  fetchEcolesPage,
+  prefetchEcolesPage,
+  readCachedEcolesPage,
+} from '@/services/ecolesService'
 
 const API_URL = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 
@@ -45,6 +52,8 @@ const DEFAULT_RADIUS = 10
 const DEFAULT_PERMIT = 'all'
 const DEFAULT_BUDGET = [MIN_BUDGET, MAX_BUDGET]
 const REQUEST_DEBOUNCE_MS = 300
+/** Doit rester ≤ MAX_PAGE_SIZE côté backend (100). Son défaut est le même. */
+const PAGE_SIZE = 24
 
 const PERMIT_OPTIONS = [
   { id: 'all', label: <Translate id="comparer.permit.all" /> },
@@ -134,7 +143,7 @@ function EcoleCardSkeleton({ mode = 'desktop' }) {
   const isMobile = mode === 'mobile'
 
   return (
-    <div className={`glass-panel-strong overflow-hidden rounded-[1.75rem] ${isMobile ? '' : 'min-h-[24rem]'}`}>
+    <div className={`glass-panel-strong-flat overflow-hidden rounded-[1.75rem] ${isMobile ? '' : 'min-h-[24rem]'}`}>
       <div className={`${isMobile ? 'h-44' : 'h-40'} w-full animate-pulse bg-slate-200`} />
       <div className="space-y-4 p-4">
         <div className="flex items-start justify-between gap-4">
@@ -162,18 +171,31 @@ function EcoleCard({ ecole, mode = 'desktop', isFavorite = false, onToggleFavori
   const details = [ecole.city, distanceLabel].filter(Boolean)
 
   return (
-    <article className="group flex h-full min-w-0 flex-col overflow-hidden rounded-[1.75rem] border border-white/80 bg-white/78 shadow-[0_24px_70px_rgba(15,23,42,0.14)] backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:shadow-[0_34px_90px_rgba(15,23,42,0.2)]">
+    /* `backdrop-blur-xl` retiré : derrière la carte il n'y a que le dégradé du
+       `body`, déjà lisse — le flouter redonne le même dégradé, pour une passe
+       de composition par frame et par carte. `bg-white/78` laisse voir le fond
+       à l'identique.
+
+       `transition-all` remplacé par la liste explicite : il animait aussi le
+       fond, la bordure et le filtre, tous repeints pendant tout le survol. */
+    <article className="group render-when-visible flex h-full min-w-0 flex-col overflow-hidden rounded-[1.75rem] border border-white/80 bg-white/78 shadow-[0_24px_70px_rgba(15,23,42,0.14)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_34px_90px_rgba(15,23,42,0.2)]">
       <div className={`relative overflow-hidden bg-slate-200 ${isMobile ? 'h-44' : 'h-40'}`}>
         {ecole.image_url ? (
-          /* La page monte l'arbre mobile ET l'arbre desktop : sans `lazy`, chaque
-             visuel est téléchargé deux fois, y compris dans l'arbre masqué par
+          /* `fill` : le parent porte déjà une hauteur fixe et `position:relative`.
+             `sizes` décrit la largeur réellement occupée à chaque palier de la
+             grille — sans lui, Next servirait la pleine largeur du viewport pour
+             une vignette d'un quart d'écran.
+
+             Le chargement reste paresseux (défaut de next/image) : la page monte
+             l'arbre mobile ET l'arbre desktop, sans quoi chaque visuel serait
+             téléchargé deux fois, y compris dans l'arbre masqué par
              `display: none` que personne ne verra. */
-          <img
+          <Image
             src={ecole.image_url}
             alt={ecole.name}
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.035]"
+            fill
+            sizes="(max-width: 767px) 100vw, (max-width: 1279px) 50vw, (max-width: 1535px) 33vw, 25vw"
+            className="object-cover transition-transform duration-500 group-hover:scale-[1.035]"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-slate-200 via-white to-blue-50">
@@ -226,7 +248,9 @@ function EcoleCard({ ecole, mode = 'desktop', isFavorite = false, onToggleFavori
             </div>
           </div>
 
-          <div className="glass-panel-soft min-w-[5.15rem] max-w-[5.7rem] rounded-2xl px-2.5 py-2 text-right">
+          {/* Variante `-flat` : cet encart est posé sur le fond blanc de la
+              carte, le filtre n'aurait rien à flouter. Idem plus bas. */}
+          <div className="glass-panel-soft-flat min-w-[5.15rem] max-w-[5.7rem] rounded-2xl px-2.5 py-2 text-right">
             <p className="text-[1.28rem] font-black leading-none text-[#0037FF]">
               {ecole.price != null ? `${ecole.price}€` : <Translate id="comparer.card.quote" />}
             </p>
@@ -236,7 +260,7 @@ function EcoleCard({ ecole, mode = 'desktop', isFavorite = false, onToggleFavori
           </div>
         </div>
 
-        <div className="glass-panel-soft mt-3 rounded-2xl px-3 py-2">
+        <div className="glass-panel-soft-flat mt-3 rounded-2xl px-3 py-2">
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#0037FF]">
             {typeof ecole.match_label === 'string' && MATCH_LABEL_TRANSLATIONS[ecole.match_label]
               ? MATCH_LABEL_TRANSLATIONS[ecole.match_label]
@@ -265,7 +289,7 @@ function EcoleCard({ ecole, mode = 'desktop', isFavorite = false, onToggleFavori
           ))}
 
           {ecole.permis_type && (
-            <span className="liquid-glass-chip rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white/80">
+            <span className="liquid-glass-chip-flat rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white/80">
               {PERMIT_LABELS[ecole.permis_type] ?? ecole.permis_type}
             </span>
           )}
@@ -628,7 +652,19 @@ function MobileFilterSheet({ open, onClose, children }) {
   )
 }
 
-function CardsArea({ error, loading, ecoles, mode = 'desktop', favorites, onToggleFavorite, canFavorite = false }) {
+function CardsArea({
+  error,
+  loading,
+  ecoles,
+  mode = 'desktop',
+  favorites,
+  onToggleFavorite,
+  canFavorite = false,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
+  onPrefetchMore,
+}) {
   const gridClasses = mode === 'mobile'
     ? 'grid min-w-0 grid-cols-1 gap-6'
     : 'grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'
@@ -644,7 +680,17 @@ function CardsArea({ error, loading, ecoles, mode = 'desktop', favorites, onTogg
     )
   }
 
-  if (loading) {
+  /**
+   * Les squelettes ne servent qu'au tout premier affichage, quand il n'y a
+   * encore rien à montrer.
+   *
+   * Sur un changement de filtre, la liste précédente reste à l'écran jusqu'à
+   * l'arrivée de la nouvelle : la remplacer par des squelettes fait clignoter
+   * toute la grille pour quelques dizaines de millisecondes de requête, et fait
+   * sauter la position de lecture. Le compteur de résultats de la barre de
+   * filtres suffit à signaler la mise à jour.
+   */
+  if (loading && ecoles.length === 0) {
     return (
       <div className={gridClasses}>
         <EcoleCardSkeleton mode={mode} />
@@ -665,26 +711,61 @@ function CardsArea({ error, loading, ecoles, mode = 'desktop', favorites, onTogg
   }
 
   return (
-    <div className={gridClasses}>
-      {ecoles.map((ecole) => (
-        <EcoleCard
-          key={ecole.id}
-          ecole={ecole}
-          mode={mode}
-          canFavorite={canFavorite}
-          isFavorite={favorites?.has(ecole.id) ?? false}
-          onToggleFavorite={onToggleFavorite}
-        />
-      ))}
-    </div>
+    <>
+      {/* aria-busy : la grille reste lisible pendant une mise à jour, mais un
+          lecteur d'écran doit savoir que son contenu est en train de changer. */}
+      <div className={gridClasses} aria-busy={loading}>
+        {ecoles.map((ecole) => (
+          <EcoleCard
+            key={ecole.id}
+            ecole={ecole}
+            mode={mode}
+            canFavorite={canFavorite}
+            isFavorite={favorites?.has(ecole.id) ?? false}
+            onToggleFavorite={onToggleFavorite}
+          />
+        ))}
+      </div>
+
+      {hasMore && (
+        <div className="mt-6 flex justify-center">
+          <button
+            type="button"
+            onClick={onLoadMore}
+            // Le survol précède le clic d'assez longtemps pour que la page
+            // suivante soit déjà chargée quand il arrive.
+            onPointerEnter={onPrefetchMore}
+            onFocus={onPrefetchMore}
+            disabled={loadingMore}
+            className="glass-panel-strong rounded-2xl px-6 py-3.5 text-sm font-black text-slate-700 transition-transform active:scale-[0.99] disabled:cursor-wait disabled:opacity-70"
+          >
+            {loadingMore
+              ? <Translate id="comparer.cards_area.loading_more" fallback="Chargement…" />
+              : <Translate id="comparer.cards_area.load_more" fallback="Voir plus d'auto-écoles" />}
+          </button>
+        </div>
+      )}
+    </>
   )
 }
 
 export default function ComparerPage() {
-  const { location, setLocation } = useLocation()
+  const { location, setLocation, isHydrated: locationHydrated } = useLocation()
+  /**
+   * Les deux arbres restent dans le code, mais un seul est monté : `null` (la
+   * largeur n'est pas encore connue) les garde tous les deux le temps de
+   * l'hydratation, puis l'un des deux disparaît.
+   */
+  const isDesktop = useIsDesktop()
 
   const [initialized, setInitialized] = useState(false)
-  const [requestDelay, setRequestDelay] = useState(REQUEST_DEBOUNCE_MS)
+  /** Faux jusqu'à la première position connue — voir l'effet de debounce. */
+  const locationSettled = useRef(false)
+  // Le debounce ne sert qu'à absorber les rafales d'un curseur qu'on fait
+  // glisser. Au premier rendu aucun filtre n'a bougé : partir à 300 ms n'y
+  // regroupait rien, ça retardait juste d'autant la seule requête qui remplit
+  // la page.
+  const [requestDelay, setRequestDelay] = useState(0)
   const [debouncedRequest, setDebouncedRequest] = useState(null)
   const [radius, setRadiusState] = useState(DEFAULT_RADIUS)
   const [permitFilter, setPermitFilterState] = useState(DEFAULT_PERMIT)
@@ -695,7 +776,21 @@ export default function ComparerPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [ecoles, setEcoles] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(null)
+  /**
+   * Nombre total d'auto-écoles correspondant aux filtres, lu dans l'en-tête
+   * `X-Total-Count`. `ecoles` n'en contient que les pages déjà chargées : c'est
+   * ce total qu'il faut afficher, pas la longueur de la liste.
+   */
+  const [total, setTotal] = useState(null)
+  /**
+   * La page courante n'a de sens que pour une recherche donnée. Plutôt que de
+   * la remettre à zéro dans un effet — ce qui provoquerait un rendu de plus, et
+   * une requête sur l'ancienne page avant la remise à zéro —, on la dérive au
+   * rendu : une clé qui ne correspond plus vaut page 0.
+   */
+  const [pageState, setPageState] = useState({ key: null, page: 0 })
 
   useBodyLock(showFilters)
 
@@ -826,10 +921,20 @@ export default function ComparerPage() {
     setGearFilterState(value)
   }
 
+  /**
+   * Une adresse saisie arrive caractère par caractère : on absorbe la rafale.
+   * Mais la toute premiere position — celle de l'URL ou de la session — n'est
+   * pas une saisie : la debouncer ne regroupait rien, ça ajoutait 300 ms au
+   * chargement de la page.
+   */
   useEffect(() => {
-    if (!initialized) return
+    if (!initialized || !locationHydrated) return
+    if (!locationSettled.current) {
+      locationSettled.current = true
+      return
+    }
     setRequestDelay(REQUEST_DEBOUNCE_MS)
-  }, [initialized, location?.lat, location?.lng, location?.displayLabel])
+  }, [initialized, locationHydrated, location?.lat, location?.lng, location?.displayLabel])
 
   useEffect(() => {
     if (!initialized) return
@@ -877,46 +982,102 @@ export default function ComparerPage() {
     }
   }, [locationActive, location?.lat, location?.lng, radius, permitFilter, budgetRange, priceSort, gearFilter, minScore])
 
+  // On attend que la position soit hydratée : partir sans elle, c'est une
+  // requête complète jetée, puis relancée avec les coordonnées.
   useEffect(() => {
-    if (!initialized) return undefined
+    if (!initialized || !locationHydrated) return undefined
+
+    // Le debounce n'existe que pour épargner à l'API les rafales d'un curseur.
+    // Une recherche déjà en mémoire ne déclenchera aucune requête : l'attendre
+    // ne protège rien, ça ne fait que retarder un affichage déjà disponible.
+    const delay = readCachedEcolesPage(request.query, 0) ? 0 : requestDelay
 
     const timer = setTimeout(() => {
       setDebouncedRequest(request)
-    }, requestDelay)
+    }, delay)
 
     return () => clearTimeout(timer)
-  }, [initialized, request, requestDelay])
+  }, [initialized, locationHydrated, request, requestDelay])
+
+  // Page dérivée au rendu : une clé périmée (les filtres ont changé) vaut 0.
+  const requestKey = debouncedRequest?.query ?? null
+  const page = pageState.key === requestKey ? pageState.page : 0
 
   useEffect(() => {
     if (!debouncedRequest) return undefined
 
     const controller = new AbortController()
+    const isFirstPage = page === 0
 
-    const fetchEcoles = async () => {
-      setLoading(true)
+    // Le score renvoyé par l'API dépend du rayon et du budget de la requête qui
+    // l'a produite : on enrichit avec ceux-là, pas avec les filtres courants.
+    const afficher = ({ ecoles: rows, total: count }) => {
+      const nextEcoles = rows.map(
+        (ecole) => enrichEcole(ecole, debouncedRequest.radius, debouncedRequest.budgetRange),
+      )
+      // Une page suivante s'ajoute sous la liste ; une nouvelle recherche la remplace.
+      setEcoles((prev) => (isFirstPage ? nextEcoles : [...prev, ...nextEcoles]))
+      // Le total manque si un proxy filtre l'en-tête : on retombe alors sur ce
+      // qui est chargé, quitte à ne pas proposer de page suivante.
+      setTotal(count)
+    }
+
+    const chargerEcoles = async () => {
+      // Recherche déjà obtenue : elle s'affiche sans requête et sans passer par
+      // l'état de chargement. C'est ce qui rend instantané un retour de curseur,
+      // un retour depuis une fiche ou le bouton précédent du navigateur.
+      const cached = readCachedEcolesPage(debouncedRequest.query, page)
+      if (cached) {
+        setError(null)
+        afficher(cached)
+        // `loading` part à true au montage : sans ça, une page servie depuis le
+        // cache au premier rendu resterait indéfiniment en état de chargement.
+        setLoading(false)
+        setLoadingMore(false)
+        return
+      }
+
+      // Une page suivante s'ajoute sous la liste : remplacer les cartes par des
+      // squelettes ferait sauter la position de lecture.
+      if (isFirstPage) setLoading(true)
+      else setLoadingMore(true)
       setError(null)
 
       try {
-        const res = await fetch(`/api/ecoles?${debouncedRequest.query}`, { signal: controller.signal })
-        if (!res.ok) throw new Error(`Erreur ${res.status}`)
-
-        const data = await res.json()
-        const nextEcoles = Array.isArray(data)
-          ? data.map((ecole) => enrichEcole(ecole, debouncedRequest.radius, debouncedRequest.budgetRange))
-          : []
-        setEcoles(nextEcoles)
+        afficher(await fetchEcolesPage(debouncedRequest.query, page, {
+          pageSize: PAGE_SIZE,
+          signal: controller.signal,
+        }))
       } catch (fetchError) {
         if (fetchError.name === 'AbortError') return
         setError(<Translate id="comparer.cards_area.error" />)
       } finally {
-        if (!controller.signal.aborted) setLoading(false)
+        if (!controller.signal.aborted) {
+          setLoading(false)
+          setLoadingMore(false)
+        }
       }
     }
 
-    fetchEcoles()
+    chargerEcoles()
 
     return () => controller.abort()
-  }, [debouncedRequest])
+  }, [debouncedRequest, page])
+
+  const resultCount = total ?? ecoles.length
+  const hasMore = ecoles.length > 0 && total != null && ecoles.length < total
+
+  const loadMore = () => {
+    if (loading || loadingMore || !hasMore) return
+    setPageState({ key: requestKey, page: page + 1 })
+  }
+
+  // Déclenché au survol du bouton, pas au montage : la page ne doit demander
+  // qu'une seule page au chargement.
+  const prefetchMore = () => {
+    if (loading || loadingMore || !hasMore || !debouncedRequest) return
+    prefetchEcolesPage(debouncedRequest.query, page + 1, { pageSize: PAGE_SIZE })
+  }
 
   const resultLabel = locationActive ? <><Translate id="comparer.page.results_near" /> {compactPlaceLabel(location)}</> : <Translate id="comparer.page.results_score" />
 
@@ -998,12 +1159,13 @@ export default function ComparerPage() {
     setGearFilter,
     onReset: resetFilters,
     hasReset,
-    resultCount: ecoles.length,
+    resultCount,
     loading,
   }
 
   return (
     <div className="min-h-[100dvh] bg-transparent">
+      {isDesktop !== true && (
       <div className="mx-auto min-h-[100dvh] max-w-md overflow-x-hidden bg-transparent md:hidden">
         <header className="glass-panel-strong sticky top-0 z-20 rounded-b-[1.75rem]">
           <div className="px-4 pb-4 pt-4">
@@ -1037,9 +1199,11 @@ export default function ComparerPage() {
               </h1>
             </div>
 
-            {!loading && !error && (
+            {/* Le compteur reste monte tant qu'il y a des cartes : le faire
+                disparaitre a chaque mise a jour decale toute la mise en page. */}
+            {!error && ecoles.length > 0 && (
               <div className="shrink-0 text-right">
-                <p className="text-2xl font-black text-[#0037FF]">{ecoles.length}</p>
+                <p className="text-2xl font-black text-[#0037FF]">{resultCount}</p>
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400"><Translate id="comparer.page.results_count" /></p>
               </div>
             )}
@@ -1071,10 +1235,16 @@ export default function ComparerPage() {
             canFavorite={!!user}
             favorites={favorites}
             onToggleFavorite={toggleFavorite}
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            onLoadMore={loadMore}
+            onPrefetchMore={prefetchMore}
           />
         </main>
       </div>
+      )}
 
+      {isDesktop !== false && (
       <div className="hidden md:block">
         <div className="mx-auto flex min-h-[100dvh] max-w-[2160px] gap-6 px-6 pb-10 pt-24 xl:gap-8 xl:px-10">
           <aside className="w-[20rem] shrink-0">
@@ -1113,9 +1283,11 @@ export default function ComparerPage() {
                 )}
               </div>
 
-              {!loading && !error && (
+              {/* Meme raison que sur l'arbre mobile : pas de bloc qui
+                  disparait a chaque changement de filtre. */}
+              {!error && ecoles.length > 0 && (
                 <div className="glass-panel-strong shrink-0 rounded-[1.65rem] px-5 py-4 text-right">
-                  <p className="text-4xl font-black leading-none text-[#0037FF]">{ecoles.length}</p>
+                  <p className="text-4xl font-black leading-none text-[#0037FF]">{resultCount}</p>
                   <p className="mt-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400"><Translate id="comparer.page.desktop_schools" /></p>
                 </div>
               )}
@@ -1138,10 +1310,15 @@ export default function ComparerPage() {
               canFavorite={!!user}
               favorites={favorites}
               onToggleFavorite={toggleFavorite}
+              hasMore={hasMore}
+              loadingMore={loadingMore}
+              onLoadMore={loadMore}
+              onPrefetchMore={prefetchMore}
             />
           </main>
         </div>
       </div>
+      )}
 
       <MobileFilterSheet open={showFilters} onClose={() => setShowFilters(false)}>
         <FilterControls mode="mobile" onApply={() => setShowFilters(false)} {...filterControlProps} />

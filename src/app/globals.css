@@ -36,7 +36,12 @@
     0 10px 32px rgba(0, 47, 167, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.28),
     inset 0 -1px 0 rgba(255, 255, 255, 0.08);
-  --liquid-blur: 110px;
+  /* Le coût d'un flou gaussien croît en rayon² : doubler le rayon quadruple le
+     travail du GPU, à chaque frame et pour chaque élément. Au-delà d'un rayon
+     de l'ordre de la taille de l'élément, le résultat converge vers la moyenne
+     uniforme des pixels derrière — les 110px d'origine coûtaient donc une
+     quinzaine de fois le prix de ces 28px pour un rendu indiscernable. */
+  --liquid-blur: 28px;
   --liquid-saturate: 230%;
   --liquid-noise: none;
   --liquid-radius: 34px;
@@ -125,35 +130,43 @@ body::before {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(40px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
 }
 
-.glass-panel-soft {
+.glass-panel-soft,
+.glass-panel-soft-flat {
   background: var(--glass-bg-soft);
   border: 1px solid rgba(255, 255, 255, 0.42);
   box-shadow: var(--glass-shadow-soft);
-  backdrop-filter: blur(32px) saturate(175%);
 }
 
-.glass-panel-strong {
+.glass-panel-soft {
+  backdrop-filter: blur(20px) saturate(175%);
+}
+
+.glass-panel-strong,
+.glass-panel-strong-flat {
   background: var(--glass-bg-strong);
   border: 1px solid var(--glass-border-strong);
   box-shadow: var(--glass-shadow-strong);
-  backdrop-filter: blur(48px) saturate(190%);
+}
+
+.glass-panel-strong {
+  backdrop-filter: blur(28px) saturate(190%);
 }
 
 .glass-chip {
   background: rgba(255, 255, 255, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.55);
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(36px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
 }
 
 .glass-input {
   background: rgba(255, 255, 255, 0.50);
   border: 1px solid rgba(255, 255, 255, 0.60);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 12px 28px rgba(15, 23, 42, 0.08);
-  backdrop-filter: blur(38px) saturate(185%);
+  backdrop-filter: blur(20px) saturate(185%);
 }
 
 /* ══════════════════════════════════════════════════════════ */
@@ -219,7 +232,8 @@ body::before {
   }
 
   /* Chip variant — lighter, for tags/badges */
-  .liquid-glass-chip {
+  .liquid-glass-chip,
+  .liquid-glass-chip-flat {
     position: relative;
     overflow: hidden;
     background: rgba(8, 16, 36, 0.22);
@@ -228,10 +242,14 @@ body::before {
       0 12px 26px rgba(6, 10, 28, 0.18),
       inset 0 1px 0 rgba(255, 255, 255, 0.18),
       inset 0 -1px 0 rgba(255, 255, 255, 0.05);
-    backdrop-filter: saturate(200%) blur(64px);
   }
 
-  .liquid-glass-chip:hover {
+  .liquid-glass-chip {
+    backdrop-filter: saturate(200%) blur(20px);
+  }
+
+  .liquid-glass-chip:hover,
+  .liquid-glass-chip-flat:hover {
     background: var(--liquid-bg-hover);
   }
 
@@ -250,4 +268,45 @@ body::before {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* ══════════════════════════════════════════════════════════ */
+/*  Coût de composition                                       */
+/* ══════════════════════════════════════════════════════════ */
+
+/*
+ * ── Les variantes `-flat` ────────────────────────────────────────────────────
+ *
+ * Un `backdrop-filter` oblige le navigateur, POUR CHAQUE élément et À CHAQUE
+ * frame, à rasteriser ce qui se trouve derrière, y appliquer un flou gaussien
+ * (dont le coût croît en rayon²) puis recomposer. Le résultat n'est pas
+ * cachable : dès que le fond bouge — c'est-à-dire à chaque pixel de scroll —
+ * tout est recalculé.
+ *
+ * Or flouter un aplat ou un dégradé lisse redonne le même aplat. Posé sur le
+ * fond opaque d'une carte, ou sur le dégradé très doux du `body`, le filtre est
+ * donc payé plein tarif pour un rendu identique. Les variantes `-flat`
+ * déclarées plus haut (`glass-panel-soft-flat`, `glass-panel-strong-flat`,
+ * `liquid-glass-chip-flat`) donnent la même apparence sans cette passe de
+ * composition. À n'employer que là : au-dessus d'une photo ou d'un contenu qui
+ * défile, le flou se voit et la classe pleine reste la bonne.
+ *
+ * Une classe d'annulation (`backdrop-filter: none` par-dessus la classe
+ * pleine) avait été essayée : Lightning CSS élimine la déclaration non
+ * préfixée à la compilation et ne laisse que `-webkit-`, ce qui n'annule rien
+ * hors des moteurs WebKit/Blink. D'où des variantes plutôt qu'une surcharge.
+ */
+
+/*
+ * Laisse le navigateur sauter entièrement le rendu (style, layout, peinture)
+ * de ce qui est hors de l'écran. /comparer monte 46 cartes — l'arbre mobile et
+ * l'arbre desktop — dont cinq ou six sont visibles à un instant donné.
+ *
+ * `contain-intrinsic-size: auto <hauteur>` donne une taille estimée aux
+ * éléments non rendus, puis mémorise leur taille réelle une fois mesurée :
+ * sans elle, ils compteraient pour zéro et la barre de défilement sauterait.
+ */
+.render-when-visible {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 26rem;
 }

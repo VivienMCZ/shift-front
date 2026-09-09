@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { normalizeLocation } from '@/app/lib/location-utils'
 
 const LocationContext = createContext(null)
@@ -9,23 +9,38 @@ const SESSION_KEY = 'shift_location'
 
 export function LocationProvider({ children }) {
   const [location, setLocationState] = useState(null)
+  /**
+   * La position n'est connue qu'après le montage (URL ou sessionStorage). Les
+   * consommateurs qui déclenchent une requête réseau à partir d'elle doivent
+   * pouvoir attendre : sans ce drapeau, /comparer partait chercher les
+   * auto-écoles sans coordonnées, puis relançait tout dès la restauration.
+   */
+  const [isHydrated, setIsHydrated] = useState(false)
 
   useEffect(() => {
     let cancelled = false
 
-    try {
-      const params = new URLSearchParams(window.location.search)
-      if (params.has('lat') && params.has('lng')) return undefined
+    const restore = () => {
+      try {
+        // Une position dans l'URL fait foi : la page la lit elle-même et
+        // appellera `setLocation`. Rien à restaurer ici.
+        const params = new URLSearchParams(window.location.search)
+        if (params.has('lat') && params.has('lng')) return null
 
-      const stored = sessionStorage.getItem(SESSION_KEY)
-      const storedLocation = stored ? normalizeLocation(JSON.parse(stored)) : null
-
-      if (storedLocation) {
-        queueMicrotask(() => {
-          if (!cancelled) setLocationState(storedLocation)
-        })
+        const stored = sessionStorage.getItem(SESSION_KEY)
+        return stored ? normalizeLocation(JSON.parse(stored)) : null
+      } catch {
+        return null
       }
-    } catch {}
+    }
+
+    const storedLocation = restore()
+
+    queueMicrotask(() => {
+      if (cancelled) return
+      if (storedLocation) setLocationState(storedLocation)
+      setIsHydrated(true)
+    })
 
     return () => {
       cancelled = true
@@ -43,8 +58,15 @@ export function LocationProvider({ children }) {
 
   const clearLocation = useCallback(() => setLocation(null), [setLocation])
 
+  // Mémoïsé : sans ça, un nouvel objet à chaque rendu ferait re-rendre tous les
+  // consommateurs du contexte même quand rien n'a changé.
+  const value = useMemo(
+    () => ({ location, setLocation, clearLocation, isHydrated }),
+    [location, setLocation, clearLocation, isHydrated],
+  )
+
   return (
-    <LocationContext.Provider value={{ location, setLocation, clearLocation }}>
+    <LocationContext.Provider value={value}>
       {children}
     </LocationContext.Provider>
   )
