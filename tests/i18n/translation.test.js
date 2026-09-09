@@ -28,7 +28,7 @@ describe('chargement du dictionnaire', () => {
 
     renderTranslated(<Translate id="hero.title.part1" />)
 
-    await waitFor(() => expect(screen.getByText('Bonjour')).toBeInTheDocument())
+    expect(await screen.findByText('Bonjour')).toBeInTheDocument()
     expect(global.fetch).toHaveBeenCalledTimes(1)
     expect(global.fetch).toHaveBeenCalledWith('/api/v1/libs/dictionary?lang=fr')
   })
@@ -39,7 +39,7 @@ describe('chargement du dictionnaire', () => {
 
     renderTranslated(<Translate id="hero.title.part1" />)
 
-    await waitFor(() => expect(screen.getByText('Hello')).toBeInTheDocument())
+    expect(await screen.findByText('Hello')).toBeInTheDocument()
     expect(global.fetch).toHaveBeenCalledWith('/api/v1/libs/dictionary?lang=en')
   })
 
@@ -132,7 +132,7 @@ describe('<Translate>', () => {
     }))
 
     const { rerender } = renderTranslated(<Translate id="hero.title.part1" />)
-    await waitFor(() => expect(screen.getByText('Un')).toBeInTheDocument())
+    expect(await screen.findByText('Un')).toBeInTheDocument()
 
     rerender(
       <LanguageProvider>

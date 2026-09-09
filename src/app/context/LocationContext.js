@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { normalizeLocation } from '@/app/lib/location-utils'
 
 const LocationContext = createContext(null)
@@ -58,8 +58,15 @@ export function LocationProvider({ children }) {
 
   const clearLocation = useCallback(() => setLocation(null), [setLocation])
 
+  // Mémoïsé : sans ça, un nouvel objet à chaque rendu ferait re-rendre tous les
+  // consommateurs du contexte même quand rien n'a changé.
+  const value = useMemo(
+    () => ({ location, setLocation, clearLocation, isHydrated }),
+    [location, setLocation, clearLocation, isHydrated],
+  )
+
   return (
-    <LocationContext.Provider value={{ location, setLocation, clearLocation, isHydrated }}>
+    <LocationContext.Provider value={value}>
       {children}
     </LocationContext.Provider>
   )

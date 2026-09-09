@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 const LanguageContext = createContext(null)
 
 const STORAGE_KEY = 'shift_app_lang'
-const SUPPORTED_LANGS = ['fr', 'en']
+const SUPPORTED_LANGS = new Set(['fr', 'en'])
 const DEFAULT_LANG = 'fr'
 
 const API_URL = typeof window !== 'undefined'
@@ -94,7 +94,7 @@ function loadDictionary(lang) {
 }
 
 export function LanguageProvider({ children }) {
-  const [lang, setLangState] = useState(DEFAULT_LANG)
+  const [lang, setLang] = useState(DEFAULT_LANG)
   const [isInitialized, setIsInitialized] = useState(false)
   const [dictionary, setDictionary] = useState(EMPTY_DICTIONARY)
 
@@ -104,8 +104,8 @@ export function LanguageProvider({ children }) {
   useEffect(() => {
     try {
       const storedLang = localStorage.getItem(STORAGE_KEY)
-      if (storedLang && SUPPORTED_LANGS.includes(storedLang)) {
-        setLangState(storedLang)
+      if (storedLang && SUPPORTED_LANGS.has(storedLang)) {
+        setLang(storedLang)
       }
     } catch (error) {
       console.warn('Could not read language from localStorage', error)
@@ -144,10 +144,12 @@ export function LanguageProvider({ children }) {
    */
   const t = useCallback((key, fallback = key) => dictionary.get(key) ?? fallback, [dictionary])
 
-  const setLang = useCallback((newLang) => {
-    if (!SUPPORTED_LANGS.includes(newLang)) return
+  // Renommé changeLang pour laisser au setter brut de useState le nom setLang
+  // (convention attendue). Reste exposé sous la clé setLang dans le contexte.
+  const changeLang = useCallback((newLang) => {
+    if (!SUPPORTED_LANGS.has(newLang)) return
 
-    setLangState(newLang)
+    setLang(newLang)
     try {
       localStorage.setItem(STORAGE_KEY, newLang)
     } catch (error) {
@@ -156,8 +158,8 @@ export function LanguageProvider({ children }) {
   }, [])
 
   const value = useMemo(
-    () => ({ lang, setLang, isInitialized, dictionary, t }),
-    [lang, setLang, isInitialized, dictionary, t],
+    () => ({ lang, setLang: changeLang, isInitialized, dictionary, t }),
+    [lang, changeLang, isInitialized, dictionary, t],
   )
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
