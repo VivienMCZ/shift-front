@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ComparerPage from '@/app/comparer/page'
 import { LanguageProvider, resetDictionaryCache } from '@/app/context/LanguageContext'
 import { LocationProvider } from '@/app/context/LocationContext'
+import { resetEcolesCache } from '@/services/ecolesService'
 
 const useAuth = vi.hoisted(() => vi.fn(() => ({ user: null, loading: false })))
 vi.mock('@/app/context/AuthContext', () => ({ useAuth }))
@@ -44,6 +45,9 @@ const renderPage = () => render(
 beforeEach(() => {
   forcerDesktop()
   resetDictionaryCache()
+  // Le cache des pages vit dans le module : sans remise a zero, le test
+  // suivant repartirait des resultats du precedent et ne ferait aucun appel.
+  resetEcolesCache()
   calls = []
   global.fetch = vi.fn(async (url) => {
     const href = String(url)

@@ -5,6 +5,7 @@ import HeroSection from '@/app/components/Home/HeroSection'
 import ProofPillars from '@/app/components/Home/ProofPillars'
 import { LanguageProvider, resetDictionaryCache } from '@/app/context/LanguageContext'
 import { LocationProvider } from '@/app/context/LocationContext'
+import { resetEcolesCache } from '@/services/ecolesService'
 
 const useAuth = vi.hoisted(() => vi.fn(() => ({ user: null, loading: false })))
 vi.mock('@/app/context/AuthContext', () => ({ useAuth }))
@@ -34,6 +35,9 @@ let schoolCalls
 
 beforeEach(() => {
   resetDictionaryCache()
+  // Le cache des pages d'auto-ecoles vit dans le module : sans remise a zero,
+  // le second test serait servi par le premier et ne compterait aucun appel.
+  resetEcolesCache()
   translateCalls = []
   schoolCalls = []
 

@@ -37,6 +37,11 @@ import {
   scoreTone,
 } from '@/app/lib/comparer-utils'
 import { Translate } from '@/app/calculateur-aides/translation'
+import {
+  fetchEcolesPage,
+  prefetchEcolesPage,
+  readCachedEcolesPage,
+} from '@/services/ecolesService'
 
 const API_URL = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 
@@ -658,6 +663,7 @@ function CardsArea({
   hasMore = false,
   loadingMore = false,
   onLoadMore,
+  onPrefetchMore,
 }) {
   const gridClasses = mode === 'mobile'
     ? 'grid min-w-0 grid-cols-1 gap-6'
@@ -674,7 +680,17 @@ function CardsArea({
     )
   }
 
-  if (loading) {
+  /**
+   * Les squelettes ne servent qu'au tout premier affichage, quand il n'y a
+   * encore rien à montrer.
+   *
+   * Sur un changement de filtre, la liste précédente reste à l'écran jusqu'à
+   * l'arrivée de la nouvelle : la remplacer par des squelettes fait clignoter
+   * toute la grille pour quelques dizaines de millisecondes de requête, et fait
+   * sauter la position de lecture. Le compteur de résultats de la barre de
+   * filtres suffit à signaler la mise à jour.
+   */
+  if (loading && ecoles.length === 0) {
     return (
       <div className={gridClasses}>
         <EcoleCardSkeleton mode={mode} />
@@ -696,7 +712,9 @@ function CardsArea({
 
   return (
     <>
-      <div className={gridClasses}>
+      {/* aria-busy : la grille reste lisible pendant une mise à jour, mais un
+          lecteur d'écran doit savoir que son contenu est en train de changer. */}
+      <div className={gridClasses} aria-busy={loading}>
         {ecoles.map((ecole) => (
           <EcoleCard
             key={ecole.id}
@@ -714,6 +732,10 @@ function CardsArea({
           <button
             type="button"
             onClick={onLoadMore}
+            // Le survol précède le clic d'assez longtemps pour que la page
+            // suivante soit déjà chargée quand il arrive.
+            onPointerEnter={onPrefetchMore}
+            onFocus={onPrefetchMore}
             disabled={loadingMore}
             className="glass-panel-strong rounded-2xl px-6 py-3.5 text-sm font-black text-slate-700 transition-transform active:scale-[0.99] disabled:cursor-wait disabled:opacity-70"
           >
@@ -965,9 +987,14 @@ export default function ComparerPage() {
   useEffect(() => {
     if (!initialized || !locationHydrated) return undefined
 
+    // Le debounce n'existe que pour épargner à l'API les rafales d'un curseur.
+    // Une recherche déjà en mémoire ne déclenchera aucune requête : l'attendre
+    // ne protège rien, ça ne fait que retarder un affichage déjà disponible.
+    const delay = readCachedEcolesPage(request.query, 0) ? 0 : requestDelay
+
     const timer = setTimeout(() => {
       setDebouncedRequest(request)
-    }, requestDelay)
+    }, delay)
 
     return () => clearTimeout(timer)
   }, [initialized, locationHydrated, request, requestDelay])
@@ -982,7 +1009,34 @@ export default function ComparerPage() {
     const controller = new AbortController()
     const isFirstPage = page === 0
 
-    const fetchEcoles = async () => {
+    // Le score renvoyé par l'API dépend du rayon et du budget de la requête qui
+    // l'a produite : on enrichit avec ceux-là, pas avec les filtres courants.
+    const afficher = ({ ecoles: rows, total: count }) => {
+      const nextEcoles = rows.map(
+        (ecole) => enrichEcole(ecole, debouncedRequest.radius, debouncedRequest.budgetRange),
+      )
+      // Une page suivante s'ajoute sous la liste ; une nouvelle recherche la remplace.
+      setEcoles((prev) => (isFirstPage ? nextEcoles : [...prev, ...nextEcoles]))
+      // Le total manque si un proxy filtre l'en-tête : on retombe alors sur ce
+      // qui est chargé, quitte à ne pas proposer de page suivante.
+      setTotal(count)
+    }
+
+    const chargerEcoles = async () => {
+      // Recherche déjà obtenue : elle s'affiche sans requête et sans passer par
+      // l'état de chargement. C'est ce qui rend instantané un retour de curseur,
+      // un retour depuis une fiche ou le bouton précédent du navigateur.
+      const cached = readCachedEcolesPage(debouncedRequest.query, page)
+      if (cached) {
+        setError(null)
+        afficher(cached)
+        // `loading` part à true au montage : sans ça, une page servie depuis le
+        // cache au premier rendu resterait indéfiniment en état de chargement.
+        setLoading(false)
+        setLoadingMore(false)
+        return
+      }
+
       // Une page suivante s'ajoute sous la liste : remplacer les cartes par des
       // squelettes ferait sauter la position de lecture.
       if (isFirstPage) setLoading(true)
@@ -990,20 +1044,10 @@ export default function ComparerPage() {
       setError(null)
 
       try {
-        const query = `${debouncedRequest.query}&limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`
-        const res = await fetch(`/api/ecoles?${query}`, { signal: controller.signal })
-        if (!res.ok) throw new Error(`Erreur ${res.status}`)
-
-        const count = Number(res.headers?.get?.('X-Total-Count'))
-        const data = await res.json()
-        const nextEcoles = Array.isArray(data)
-          ? data.map((ecole) => enrichEcole(ecole, debouncedRequest.radius, debouncedRequest.budgetRange))
-          : []
-
-        setEcoles((prev) => (isFirstPage ? nextEcoles : [...prev, ...nextEcoles]))
-        // L'en-tête manque si un proxy le filtre : on retombe alors sur ce qui
-        // est chargé, quitte à ne pas proposer de page suivante.
-        setTotal(Number.isFinite(count) && count >= 0 ? count : null)
+        afficher(await fetchEcolesPage(debouncedRequest.query, page, {
+          pageSize: PAGE_SIZE,
+          signal: controller.signal,
+        }))
       } catch (fetchError) {
         if (fetchError.name === 'AbortError') return
         setError(<Translate id="comparer.cards_area.error" />)
@@ -1015,7 +1059,7 @@ export default function ComparerPage() {
       }
     }
 
-    fetchEcoles()
+    chargerEcoles()
 
     return () => controller.abort()
   }, [debouncedRequest, page])
@@ -1026,6 +1070,13 @@ export default function ComparerPage() {
   const loadMore = () => {
     if (loading || loadingMore || !hasMore) return
     setPageState({ key: requestKey, page: page + 1 })
+  }
+
+  // Déclenché au survol du bouton, pas au montage : la page ne doit demander
+  // qu'une seule page au chargement.
+  const prefetchMore = () => {
+    if (loading || loadingMore || !hasMore || !debouncedRequest) return
+    prefetchEcolesPage(debouncedRequest.query, page + 1, { pageSize: PAGE_SIZE })
   }
 
   const resultLabel = locationActive ? <><Translate id="comparer.page.results_near" /> {compactPlaceLabel(location)}</> : <Translate id="comparer.page.results_score" />
@@ -1148,7 +1199,9 @@ export default function ComparerPage() {
               </h1>
             </div>
 
-            {!loading && !error && (
+            {/* Le compteur reste monte tant qu'il y a des cartes : le faire
+                disparaitre a chaque mise a jour decale toute la mise en page. */}
+            {!error && ecoles.length > 0 && (
               <div className="shrink-0 text-right">
                 <p className="text-2xl font-black text-[#0037FF]">{resultCount}</p>
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400"><Translate id="comparer.page.results_count" /></p>
@@ -1185,6 +1238,7 @@ export default function ComparerPage() {
             hasMore={hasMore}
             loadingMore={loadingMore}
             onLoadMore={loadMore}
+            onPrefetchMore={prefetchMore}
           />
         </main>
       </div>
@@ -1229,7 +1283,9 @@ export default function ComparerPage() {
                 )}
               </div>
 
-              {!loading && !error && (
+              {/* Meme raison que sur l'arbre mobile : pas de bloc qui
+                  disparait a chaque changement de filtre. */}
+              {!error && ecoles.length > 0 && (
                 <div className="glass-panel-strong shrink-0 rounded-[1.65rem] px-5 py-4 text-right">
                   <p className="text-4xl font-black leading-none text-[#0037FF]">{resultCount}</p>
                   <p className="mt-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400"><Translate id="comparer.page.desktop_schools" /></p>
@@ -1257,6 +1313,7 @@ export default function ComparerPage() {
               hasMore={hasMore}
               loadingMore={loadingMore}
               onLoadMore={loadMore}
+              onPrefetchMore={prefetchMore}
             />
           </main>
         </div>
