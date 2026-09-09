@@ -68,7 +68,7 @@ describe('LocationSearchBar', () => {
 
     await user.type(screen.getByRole('combobox'), 'paris')
 
-    await waitFor(() => expect(screen.getAllByRole('option').length).toBe(2))
+    expect(await screen.findAllByRole('option')).toHaveLength(2)
     expect(global.fetch).toHaveBeenCalledTimes(1)
     expect(global.fetch.mock.calls[0][0]).toContain('/api/locations/search?q=paris')
   })
@@ -82,7 +82,7 @@ describe('LocationSearchBar', () => {
 
     await user.type(screen.getByRole('combobox'), 'lyon')
 
-    await waitFor(() => expect(screen.getByRole('option')).toBeInTheDocument())
+    expect(await screen.findByRole('option')).toBeInTheDocument()
     expect(global.fetch).toHaveBeenCalledTimes(2)
     // Le premier appel vise le proxy, le second l'API publique de repli.
     expect(global.fetch.mock.calls[0][0]).toContain('/api/locations/search')
@@ -95,7 +95,7 @@ describe('LocationSearchBar', () => {
     render(<LocationSearchBar />)
 
     await user.type(screen.getByRole('combobox'), 'paris')
-    await waitFor(() => expect(screen.getByRole('option')).toBeInTheDocument())
+    await screen.findByRole('option')
     // Le handler de sélection est sur le bouton interne (onMouseDown), pas sur le <li>.
     await user.click(within(screen.getByRole('option')).getByRole('button'))
 
@@ -113,7 +113,7 @@ describe('LocationSearchBar', () => {
 
     const input = screen.getByRole('combobox')
     await user.type(input, 'par')
-    await waitFor(() => expect(screen.getAllByRole('option').length).toBe(2))
+    expect(await screen.findAllByRole('option')).toHaveLength(2)
 
     // La première option est active par défaut ; on descend sur la seconde.
     await user.keyboard('{ArrowDown}{Enter}')
@@ -129,7 +129,7 @@ describe('LocationSearchBar', () => {
 
     await user.type(screen.getByRole('combobox'), 'zzzzz')
 
-    await waitFor(() => expect(screen.getByText(/aucune adresse trouvée/i)).toBeInTheDocument())
+    expect(await screen.findByText(/aucune adresse trouvée/i)).toBeInTheDocument()
   })
 
   it('affiche une erreur quand les deux sources échouent', async () => {
@@ -141,7 +141,7 @@ describe('LocationSearchBar', () => {
 
     await user.type(screen.getByRole('combobox'), 'paris')
 
-    await waitFor(() => expect(screen.getByText(/erreur lors de la recherche/i)).toBeInTheDocument())
+    expect(await screen.findByText(/erreur lors de la recherche/i)).toBeInTheDocument()
   })
 
   it('efface la saisie et la localisation', async () => {
