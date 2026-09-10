@@ -53,6 +53,10 @@ export default function CalculateurAides() {
   const validateStep1 = () => {
     const newErrors = {};
     if (!formData.age) newErrors.age = <Translate id="calculateur.error.age_missing" />;
+    // 15 ans : début de la conduite accompagnée, et âge d'entrée de plusieurs
+    // aides du catalogue (permis à 1 €/jour, SNU). `min` sur l'input borne les
+    // flèches du champ, pas la saisie au clavier : le seuil est donc vérifié ici
+    // aussi.
     else if (isNaN(formData.age) || formData.age < 15 || formData.age > 99) newErrors.age = <Translate id="calculateur.error.age_invalid" />;
     
     if (!formData.postalCode) newErrors.postalCode = <Translate id="calculateur.error.cp_missing" />;
@@ -179,6 +183,10 @@ export default function CalculateurAides() {
                   <input
                     type="number"
                     id="age"
+                    min={15}
+                    max={99}
+                    step={1}
+                    inputMode="numeric"
                     placeholder={agePlaceholder}
                     value={formData.age}
                     onChange={(e) => setFormData({ ...formData, age: e.target.value })}
