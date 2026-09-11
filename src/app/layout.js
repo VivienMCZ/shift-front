@@ -2,6 +2,7 @@ import { AuthProvider } from '@/app/context/AuthContext'
 import { LocationProvider } from '@/app/context/LocationContext'
 import { LanguageProvider } from '@/app/context/LanguageContext'
 import Navbar from '@/app/components/Navbar'
+import Footer from '@/app/components/Footer'
 import MotionProvider from '@/app/components/MotionProvider'
 import './globals.css'
 
@@ -31,6 +32,7 @@ export default function RootLayout({ children }) {
             <LocationProvider>
               <Navbar />
               {children}
+              <Footer />
             </LocationProvider>
           </AuthProvider>
         </LanguageProvider>
