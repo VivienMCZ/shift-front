@@ -27,6 +27,10 @@ ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ARG INTERNAL_API_URL
 ENV INTERNAL_API_URL=$INTERNAL_API_URL
+# Public URL of the site, without trailing slash. Baked into sitemap.xml,
+# robots.txt and absolute metadata URLs, which are generated at build time.
+ARG SITE_URL
+ENV SITE_URL=$SITE_URL
 
 # Build the Next.js application.
 RUN npm run build

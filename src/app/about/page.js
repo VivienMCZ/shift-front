@@ -2,6 +2,11 @@ import Link from 'next/link'
 import { BadgeEuro, CircleHelp, MapPin } from 'lucide-react'
 import { Translate } from '@/app/calculateur-aides/translation'
 
+export const metadata = {
+  title: 'À propos',
+  description: 'Shift réunit la comparaison des auto-écoles et la recherche d’aides pour financer le permis.',
+}
+
 const HELP_ITEMS = [
   {
     id: 'financing',
@@ -33,7 +38,7 @@ export default function AboutPage() {
             <Translate id="about.title" />
           </h1>
           <p className="mt-4 text-base text-zinc-500">
-            <Translate id="about.subtitle" />
+            <Translate id="about.intro" />
           </p>
         </div>
 

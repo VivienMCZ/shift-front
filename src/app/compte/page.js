@@ -4,22 +4,123 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { m } from 'framer-motion'
-import { LogOut, User, Mail, Phone, History, Heart, Trash2, ExternalLink, MapPin, Star, Navigation, ArrowRight } from 'lucide-react'
+import { LogOut, User, Mail, Phone, History, Heart, Trash2, ExternalLink, MapPin, Star, Navigation, ArrowRight, Pencil, Download, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/app/context/AuthContext'
-import { GLASS_SHELL_STYLE } from '@/app/lib/glass-styles'
 import { Translate } from '@/app/calculateur-aides/translation'
+import { useLanguage } from '@/app/context/LanguageContext'
+import { formatEuros } from '@/app/lib/aides-utils'
+import {
+  deleteAccount,
+  deleteAideSave,
+  exportAccountData,
+  exportFileName,
+  isPhoneTaken,
+  profileChanges,
+  updateProfile,
+} from '@/services/compteService'
+
+const INPUT_CLASS = 'mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20'
+
+/** Déclenche le téléchargement d'un objet en JSON, sans passer par le serveur. */
+function downloadJson(data, fileName) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+  URL.revokeObjectURL(url)
+}
 
 export default function ComptePage() {
   const router = useRouter()
-  const { user, loading, logout } = useAuth()
+  const { user, loading, logout, checkAuth } = useAuth()
+  // Attributs (aria-label) : une chaîne, pas un <Translate>.
+  const { t } = useLanguage()
   const [searches, setSearches] = useState([])
   const [favorites, setFavorites] = useState([])
 
+  // Rectification du profil
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState({ first_name: '', last_name: '', phone: '' })
+  const [saving, setSaving] = useState(false)
+  const [infoError, setInfoError] = useState(null)
+
+  // Export et effacement
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [privacyBusy, setPrivacyBusy] = useState(false)
+  const [privacyError, setPrivacyError] = useState(false)
+  // Compte supprimé : la session disparaît, mais c'est vers l'accueil qu'on
+  // part, pas vers l'écran de connexion.
+  const [deleted, setDeleted] = useState(false)
+
+  const startEditing = () => {
+    setForm({ first_name: user.first_name, last_name: user.last_name, phone: user.phone ?? '' })
+    setInfoError(null)
+    setEditing(true)
+  }
+
+  const saveProfile = async (event) => {
+    event.preventDefault()
+    const changes = profileChanges(user, form)
+    if (Object.keys(changes).length === 0) {
+      setEditing(false)
+      return
+    }
+    setSaving(true)
+    setInfoError(null)
+    try {
+      await updateProfile(changes)
+      await checkAuth()
+      setEditing(false)
+    } catch (err) {
+      setInfoError(isPhoneTaken(err) ? 'compte.info.phone_taken' : 'compte.info.error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleExport = async () => {
+    setPrivacyBusy(true)
+    setPrivacyError(false)
+    try {
+      downloadJson(await exportAccountData(), exportFileName())
+    } catch {
+      setPrivacyError(true)
+    } finally {
+      setPrivacyBusy(false)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    setPrivacyBusy(true)
+    setPrivacyError(false)
+    try {
+      await deleteAccount()
+      setDeleted(true)
+      router.replace('/')
+      // Le backend a retiré le cookie : relire la session vide le contexte
+      // (barre de navigation comprise).
+      await checkAuth()
+    } catch {
+      setPrivacyError(true)
+      setPrivacyBusy(false)
+    }
+  }
+
+  const removeSearch = async (saveId) => {
+    try {
+      await deleteAideSave(saveId)
+      setSearches((prev) => prev.filter((s) => s.id !== saveId))
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !user && !deleted) {
       router.push('/auth')
     }
-  }, [user, loading, router])
+  }, [user, loading, router, deleted])
 
   // Récupère l'historique des recherches + les auto-écoles favorites
   useEffect(() => {
@@ -84,19 +185,57 @@ export default function ComptePage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-3">
+          <div className="col-span-1 space-y-6">
           {/* Informations personnelles */}
           <m.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            className="col-span-1 rounded-[2rem] bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-slate-100"
+            className="rounded-[2rem] bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-slate-100"
           >
             <div className="mb-6 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600">
                 <User size={20} />
               </div>
-              <h2 className="text-lg font-bold text-slate-900"><Translate id="compte.info.title" /></h2>
+              <h2 className="flex-1 text-lg font-bold text-slate-900"><Translate id="compte.info.title" /></h2>
+              {!editing && (
+                <button
+                  type="button"
+                  onClick={startEditing}
+                  className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold text-blue-600 transition-colors hover:bg-blue-50"
+                >
+                  <Pencil size={14} />
+                  <Translate id="compte.info.edit" />
+                </button>
+              )}
             </div>
-            
+
+            {editing ? (
+              <form onSubmit={saveProfile} className="space-y-4">
+                <div>
+                  <label htmlFor="first_name" className="text-xs font-semibold text-slate-500 uppercase tracking-wider"><Translate id="auth.placeholder.firstname" /></label>
+                  <input id="first_name" required maxLength={100} value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} className={INPUT_CLASS} />
+                </div>
+                <div>
+                  <label htmlFor="last_name" className="text-xs font-semibold text-slate-500 uppercase tracking-wider"><Translate id="auth.placeholder.lastname" /></label>
+                  <input id="last_name" required maxLength={100} value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} className={INPUT_CLASS} />
+                </div>
+                <div>
+                  <label htmlFor="phone" className="text-xs font-semibold text-slate-500 uppercase tracking-wider"><Translate id="compte.info.phone" /></label>
+                  <input id="phone" type="tel" maxLength={20} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={INPUT_CLASS} />
+                </div>
+                {infoError && (
+                  <p role="alert" className="text-sm font-semibold text-red-600"><Translate id={infoError} /></p>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <button type="submit" disabled={saving} className="flex-1 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-60">
+                    <Translate id="compte.info.save" />
+                  </button>
+                  <button type="button" onClick={() => setEditing(false)} disabled={saving} className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 ring-1 ring-inset ring-slate-200 transition-colors hover:bg-slate-50">
+                    <Translate id="compte.info.cancel" />
+                  </button>
+                </div>
+              </form>
+            ) : (
             <div className="space-y-5">
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider"><Translate id="compte.info.fullname" /></label>
@@ -127,7 +266,7 @@ export default function ComptePage() {
               {user.statut && (
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider"><Translate id="compte.info.status" /></label>
-                  <p className="mt-1 font-medium text-slate-900 capitalize">{user.statut}</p>
+                  <p className="mt-1 font-medium text-slate-900"><Translate id={`calculateur.status.${user.statut}`} fallback={user.statut} /></p>
                 </div>
               )}
               {user.postal_code && (
@@ -137,7 +276,78 @@ export default function ComptePage() {
                 </div>
               )}
             </div>
+            )}
           </m.div>
+
+          {/* Mes données (RGPD) : accès, portabilité, effacement */}
+          <m.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="rounded-[2rem] bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-slate-100"
+          >
+            <div className="mb-3 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                <ShieldCheck size={20} />
+              </div>
+              <h2 className="text-lg font-bold text-slate-900"><Translate id="compte.privacy.title" /></h2>
+            </div>
+            <p className="text-sm text-slate-500"><Translate id="compte.privacy.desc" /></p>
+
+            <div className="mt-5 space-y-2">
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={privacyBusy}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-200 disabled:opacity-60"
+              >
+                <Download size={16} />
+                <Translate id="compte.privacy.export" />
+              </button>
+
+              {confirmDelete ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+                  <p className="text-sm font-medium text-red-700"><Translate id="compte.privacy.delete_confirm" /></p>
+                  <div className="mt-3 flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDeleteAccount}
+                      disabled={privacyBusy}
+                      className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+                    >
+                      <Translate id="compte.privacy.delete_confirm_btn" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(false)}
+                      disabled={privacyBusy}
+                      className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-white"
+                    >
+                      <Translate id="compte.info.cancel" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-red-600 ring-1 ring-inset ring-red-200 transition-colors hover:bg-red-50"
+                >
+                  <Trash2 size={16} />
+                  <Translate id="compte.privacy.delete" />
+                </button>
+              )}
+
+              {privacyError && (
+                <p role="alert" className="text-sm font-semibold text-red-600"><Translate id="compte.privacy.error" /></p>
+              )}
+            </div>
+
+            <Link href="/confidentialite" className="mt-4 inline-block text-xs font-semibold text-slate-500 underline underline-offset-4 hover:text-slate-800">
+              <Translate id="compte.privacy.policy" />
+            </Link>
+          </m.div>
+          </div>
 
           {/* Favoris et Historique (Placeholders) */}
           <m.div
@@ -277,11 +487,21 @@ export default function ComptePage() {
                           })}
                         </p>
                       </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-lg font-black text-emerald-600">{s.total_potentiel}€</p>
-                        <p className="text-[11px] font-medium text-slate-400">
-                          {s.aides?.length || 0} <Translate id="compte.history.aides_count" />
-                        </p>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <div className="text-right">
+                          <p className="text-lg font-black text-emerald-600">{formatEuros(s.total_potentiel)}</p>
+                          <p className="text-[11px] font-medium text-slate-400">
+                            {s.aides?.length || 0} <Translate id="compte.history.aides_count" />
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeSearch(s.id)}
+                          aria-label={t('compte.history.delete', 'Supprimer cette recherche')}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </div>
                   ))}

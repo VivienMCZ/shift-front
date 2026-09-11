@@ -2,12 +2,25 @@ import { AuthProvider } from '@/app/context/AuthContext'
 import { LocationProvider } from '@/app/context/LocationContext'
 import { LanguageProvider } from '@/app/context/LanguageContext'
 import Navbar from '@/app/components/Navbar'
+import Footer from '@/app/components/Footer'
 import MotionProvider from '@/app/components/MotionProvider'
+import { SITE_NAME, SITE_URL } from '@/app/lib/site-info'
 import './globals.css'
 
 export const metadata = {
-  title: 'Shift',
+  // Base des URL absolues (Open Graph, canonical) générées par Next.
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: `${SITE_NAME} — comparer les auto-écoles et les aides au permis`,
+    // Chaque page ne déclare que son propre titre ; le nom du site suit.
+    template: `%s | ${SITE_NAME}`,
+  },
   description: "Comparer les auto-écoles et trouver des aides pour financer son permis.",
+  openGraph: {
+    siteName: SITE_NAME,
+    locale: 'fr_FR',
+    type: 'website',
+  },
 }
 
 export default function RootLayout({ children }) {
@@ -31,6 +44,7 @@ export default function RootLayout({ children }) {
             <LocationProvider>
               <Navbar />
               {children}
+              <Footer />
             </LocationProvider>
           </AuthProvider>
         </LanguageProvider>
