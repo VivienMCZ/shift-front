@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { m, AnimatePresence } from "framer-motion";
-import { ArrowRight, ArrowLeft, Briefcase, GraduationCap, Building2, User, HelpCircle, CheckCircle2, Loader2, Sparkles, AlertCircle } from "lucide-react";
+import { ArrowRight, ArrowLeft, Briefcase, GraduationCap, Building2, User, HelpCircle, CheckCircle2, Loader2, Sparkles, AlertCircle, Clock, Compass, Check } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
 import { Translate } from "@/app/calculateur-aides/translation";
 import { useLanguage } from "@/app/context/LanguageContext";
 import { safeExternalUrl } from '@/app/lib/safe-url'
+import { SITUATIONS, buildAidesPayload, formatEuros, isPret, situationsForStatus } from '@/app/lib/aides-utils'
 
 
 export default function CalculateurAides() {
@@ -19,6 +20,7 @@ export default function CalculateurAides() {
     age: "",
     postalCode: "",
     status: "",
+    situations: {},
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -36,6 +38,8 @@ export default function CalculateurAides() {
     { id: "apprenti", label: <Translate id="calculateur.status.apprenti" />, icon: Briefcase },
     { id: "salarie", label: <Translate id="calculateur.status.salarie" />, icon: Building2 },
     { id: "chomeur", label: <Translate id="calculateur.status.chomeur" />, icon: HelpCircle },
+    { id: "jeune_insertion", label: <Translate id="calculateur.status.jeune_insertion" />, icon: Compass },
+    { id: "interimaire", label: <Translate id="calculateur.status.interimaire" />, icon: Clock },
     { id: "autre", label: <Translate id="calculateur.status.autre" />, icon: User },
   ];
 
@@ -43,6 +47,7 @@ export default function CalculateurAides() {
   useEffect(() => {
     if (user) {
       setFormData(prev => ({
+        ...prev,
         age: user.age ? String(user.age) : prev.age,
         postalCode: user.postal_code || prev.postalCode,
         status: user.statut || prev.status,
@@ -102,17 +107,7 @@ export default function CalculateurAides() {
         }).then(() => checkAuth()).catch(console.error); // refresh AuthContext silently
       }
 
-      // Map formData to API expected format
-      const payload = {
-        age: Number(formData.age),
-        statut: formData.status,
-        code_postal: formData.postalCode,
-        has_rqth: false,
-        is_boursier: false,
-        inscrit_france_travail: formData.status === "chomeur",
-        beneficiaire_rsa: false,
-        en_formation_qualifiante: false,
-      };
+      const payload = buildAidesPayload(formData);
 
       // credentials: "include" => envoie le cookie de session pour que la
       // recherche soit sauvegardée côté backend si l'utilisateur est connecté.
@@ -243,7 +238,7 @@ export default function CalculateurAides() {
                       return (
                         <button
                           key={s.id}
-                          onClick={() => setFormData({ ...formData, status: s.id })}
+                          onClick={() => setFormData({ ...formData, status: s.id, situations: situationsForStatus(s.id, formData.situations) })}
                           className={`relative flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all ${
                             isSelected 
                               ? 'border-[#0047FF] bg-[#0047FF]/5 shadow-md' 
@@ -263,6 +258,51 @@ export default function CalculateurAides() {
                   </div>
                   {errors.status && <p className="mt-3 text-sm font-semibold text-red-500">{errors.status}</p>}
                 </div>
+
+                <fieldset>
+                  <legend className="block text-sm font-bold text-[#334155]">
+                    <Translate id="calculateur.situations.title" />
+                  </legend>
+                  <p className="mt-1 mb-4 text-xs font-semibold text-[#64748b]">
+                    <Translate id="calculateur.situations.hint" />
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {SITUATIONS.map(({ field, labelKey, noteKey }) => {
+                      const checked = Boolean(formData.situations[field]);
+                      return (
+                        <button
+                          key={field}
+                          type="button"
+                          role="checkbox"
+                          aria-checked={checked}
+                          onClick={() => setFormData({
+                            ...formData,
+                            situations: { ...formData.situations, [field]: !checked },
+                          })}
+                          className={`flex items-start gap-3 rounded-xl border-2 p-3 text-left text-sm font-bold transition-all ${
+                            checked
+                              ? 'border-[#0047FF] bg-[#0047FF]/5 text-[#0047FF]'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-[#0047FF]/30'
+                          }`}
+                        >
+                          <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 ${
+                            checked ? 'border-[#0047FF] bg-[#0047FF] text-white' : 'border-slate-300 bg-white'
+                          }`}>
+                            {checked && <Check size={14} strokeWidth={3} />}
+                          </span>
+                          <span>
+                            <Translate id={labelKey} />
+                            {noteKey && (
+                              <span className="mt-1 block text-xs font-medium text-slate-500">
+                                <Translate id={noteKey} />
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
 
                 {apiError && (
                   <div className="rounded-xl border border-rose-100 bg-rose-50 px-5 py-4 text-sm font-bold text-rose-600">
@@ -308,9 +348,18 @@ export default function CalculateurAides() {
                   <h2 className="text-2xl font-black text-slate-900">
                     <Translate id="calculateur.result.title" />
                   </h2>
-                  <p className="mt-2 text-slate-500 font-medium">
-                    <Translate id="calculateur.result.subtitle_part1" /><span className="text-emerald-600 font-black">{results.total_potentiel}€</span>.
-                  </p>
+                  {results.total_potentiel > 0 && (
+                    <p className="mt-2 text-slate-500 font-medium">
+                      <Translate id="calculateur.result.subtitle_part1" /><span className="text-emerald-600 font-black">{formatEuros(results.total_potentiel)}</span>.
+                    </p>
+                  )}
+                  {/* Les prêts se remboursent : ils ne gonflent pas le total
+                      ci-dessus, mais restent signalés. */}
+                  {results.total_prets > 0 && (
+                    <p className="mt-1 text-sm text-slate-500 font-medium">
+                      <Translate id="calculateur.result.loans" /> <span className="font-black text-slate-700">{formatEuros(results.total_prets)}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-4">
@@ -325,11 +374,13 @@ export default function CalculateurAides() {
                             <h3 className="mt-2 text-lg font-black text-slate-900">{aide.nom}</h3>
                             <p className="mt-1 text-sm text-slate-500 leading-relaxed">{aide.description}</p>
                           </div>
-                          {aide.montant && (
-                            <div className="shrink-0 text-right">
-                              <span className="text-xl font-black text-emerald-600">{aide.montant}€</span>
-                            </div>
-                          )}
+                          <div className="shrink-0 text-right">
+                            {aide.montant ? (
+                              <span className={`text-xl font-black ${isPret(aide) ? 'text-slate-600' : 'text-emerald-600'}`}>{formatEuros(aide.montant)}</span>
+                            ) : (
+                              <span className="text-xs font-bold text-slate-400"><Translate id="calculateur.result.no_amount" /></span>
+                            )}
+                          </div>
                         </div>
                         {aide.url_demande && (
                           <div className="mt-4 pt-4 border-t border-slate-100">
@@ -346,6 +397,10 @@ export default function CalculateurAides() {
                     </div>
                   )}
                 </div>
+
+                <p className="text-xs leading-relaxed text-slate-400">
+                  <Translate id="calculator_results.disclaimer" />
+                </p>
 
                 <div className="pt-4 border-t border-slate-200">
                   <Link
