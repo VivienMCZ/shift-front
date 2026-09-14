@@ -27,9 +27,9 @@ jobs:
     name: Lint and unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -49,7 +49,7 @@ jobs:
 
       # Consumed by the sonar job, so the suite runs only once per workflow.
       - name: Upload coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: coverage/
@@ -59,9 +59,9 @@ jobs:
     name: Next.js build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -77,14 +77,14 @@ jobs:
     needs: [test, build]
     if: github.event_name != 'schedule'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       # Build only — nothing is pushed. INTERNAL_API_URL is baked into the
       # Next rewrites at build time, so it has to be passed here too.
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: false
@@ -140,7 +140,7 @@ jobs:
         if: steps.token.outputs.present != 'true'
         run: echo "::notice::SONAR_TOKEN is not set - skipping the SonarQube analysis."
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         if: steps.token.outputs.present == 'true'
         with:
           # Sonar needs the full history to attribute blame and new-code periods.
@@ -148,14 +148,14 @@ jobs:
 
       - name: Download coverage
         if: steps.token.outputs.present == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: coverage
           path: coverage
 
       - name: SonarQube scan
         if: steps.token.outputs.present == 'true'
-        uses: SonarSource/sonarqube-scan-action@v6
+        uses: SonarSource/sonarqube-scan-action@v8
 
       # Fails the job when the project's quality gate is red.
       - name: Quality gate
@@ -174,17 +174,17 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Initialise CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript
           # Adds the OWASP-oriented rules on top of the default set.
           queries: security-extended
 
       - name: Analyze
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: /language:javascript-typescript
 
@@ -196,9 +196,9 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -217,7 +217,7 @@ jobs:
       - name: Dependency review
         if: github.event_name == 'pull_request'
         continue-on-error: true
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: moderate
           comment-summary-in-pr: on-failure
