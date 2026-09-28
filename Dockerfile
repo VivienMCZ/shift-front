@@ -1,7 +1,7 @@
 # Node.js 22 LTS, pinned by digest so local and CI build the exact same base.
 # Dependabot bumps this line; re-pin manually with:
 #   docker inspect node:22-slim --format '{{index .RepoDigests 0}}'
-FROM node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+FROM node:22-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c
 
 # Set the working directory in the container.
 WORKDIR /app
